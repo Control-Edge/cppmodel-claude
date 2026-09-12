@@ -1,0 +1,485 @@
+openapi: 3.0.3
+info:
+  title: CppModel Public REST API
+  description: >
+    REST API for the CppModel simulation platform.
+  version: 0.4.0
+  contact:
+    name: CppModel
+    url: https://cppmodel.com
+servers:
+  - url: https://{workspace}.cppmodel.com/api
+    description: Dedicated per-customer workspace
+    variables:
+      workspace:
+        default: w100435
+        description: >
+          Workspace subdomain, assigned when the workspace is provisioned.
+security:
+  - keycloak: []
+tags:
+  - name: Simulations
+    description: Endpoints related to managing and executing simulations.
+  - name: System
+    description: Health, version, and other system-level endpoints.
+paths:
+
+  /simulations:
+    get:
+      tags:
+        - Simulations
+      operationId: simulations_get
+      summary: List simulations
+      description: >
+        Get a paginated list of simulations. Use scope=team to include all
+        simulations in the user's team.
+      parameters:
+        - name: scope
+          in: query
+          description: Set to "team" to list all simulations in the user's team.
+          required: false
+          schema:
+            type: string
+            enum:
+              - user
+              - team
+            default: user
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Paginated list of simulations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulationListResponse"
+              examples:
+                user:
+                  summary: User's own simulations
+                  value:
+                    {
+                      "items":
+                        [
+                          { "id": "home-temperature", "name": "Home temperature", "totalExecutions": 240 },
+                          { "id": "server-requests", "name": "Server requests", "totalExecutions": 43 },
+                        ],
+                      "total": 4,
+                      "limit": 50,
+                      "offset": 0,
+                    }
+                team:
+                  summary: Team simulations
+                  value:
+                    {
+                      "items":
+                        [
+                          { "id": "home-temperature", "name": "Home temperature", "owner": "user1@cppmodel.com", "totalExecutions": 240 },
+                          { "id": "server-requests", "name": "Server requests", "owner": "user2@cppmodel.com", "totalExecutions": 43 },
+                        ],
+                      "total": 4,
+                      "limit": 50,
+                      "offset": 0,
+                    }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /simulations/{simulationId}:
+    get:
+      tags:
+        - Simulations
+      operationId: simulations_simulation_get
+      summary: Get latest simulation results
+      description: Get the latest execution output results for this simulation.
+      parameters:
+        - $ref: "#/components/parameters/SimulationId"
+      responses:
+        "200":
+          description: Latest simulation results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeSeriesMap"
+              example:
+                {
+                  "Living room temperature":
+                    {
+                      "x": [0, 3600, 7200, 10800, 14400, 18000],
+                      "y": [20, 21, 21, 22, 21, 19],
+                    },
+                  "Window closed":
+                    {
+                      "x": [0, 3600, 7200, 10800, 14400, 18000],
+                      "y": [1, 1, 1, 1, 0, 0],
+                    },
+                }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Simulation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /simulations/{simulationId}/inputs:
+    get:
+      tags:
+        - Simulations
+      operationId: simulations_simulation_inputs_get
+      summary: Get pre-execution input parameters
+      description: >
+        Get the latest input / parameter data for this simulation. These are
+        typically submitted from the front end before an execution is triggered.
+      parameters:
+        - $ref: "#/components/parameters/SimulationId"
+      responses:
+        "200":
+          description: Pre-execution input data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeSeriesMap"
+              example:
+                {
+                  "Living room temperature":
+                    {
+                      "x": [0, 3600, 7200, 10800, 14400, 18000],
+                      "y": [20, 21, 21, 22, 21, 19],
+                    },
+                  "Window closed":
+                    {
+                      "x": [0, 3600, 7200, 10800, 14400, 18000],
+                      "y": [1, 1, 1, 1, 0, 0],
+                    },
+                }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Simulation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /simulations/{simulationId}/executions:
+    get:
+      tags:
+        - Simulations
+      operationId: simulations_simulation_executions_get
+      summary: List executions for a simulation
+      description: >
+        Get a paginated list of execution summaries for this simulation,
+        ordered by most recent first.
+      parameters:
+        - $ref: "#/components/parameters/SimulationId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Paginated list of executions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionListResponse"
+              example:
+                {
+                  "items":
+                    [
+                      { "id": "exec-001", "createdAt": "2026-03-20T14:30:00Z", "status": "completed" },
+                      { "id": "exec-002", "createdAt": "2026-03-21T09:15:00Z", "status": "completed" },
+                    ],
+                  "total": 2,
+                  "limit": 50,
+                  "offset": 0,
+                }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Simulation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /simulations/{simulationId}/executions/{executionId}:
+    get:
+      tags:
+        - Simulations
+      operationId: simulations_simulation_execution_get
+      summary: Get execution data by ID
+      parameters:
+        - $ref: "#/components/parameters/SimulationId"
+        - $ref: "#/components/parameters/ExecutionId"
+      responses:
+        "200":
+          description: Execution data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeSeriesMap"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Simulation or execution not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /version:
+    get:
+      tags:
+        - System
+      operationId: version_get
+      summary: Get API version
+      security: []
+      responses:
+        "200":
+          description: Version info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionInfo"
+              example:
+                { "version": "0.4.0", "build": "abc123" }
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code.
+        message:
+          type: string
+          description: Human-readable error description.
+
+    PaginationMeta:
+      type: object
+      required:
+        - total
+        - limit
+        - offset
+      properties:
+        total:
+          type: integer
+          description: Total number of items matching the query.
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    SimulationSummary:
+      type: object
+      required:
+        - id
+        - name
+        - totalExecutions
+      properties:
+        id:
+          type: string
+          description: >
+            The simulation's display name, exactly as passed to
+            CMODEL_SIMULATE(...) in the source. Not a slug or UUID - may
+            contain spaces and other characters, and must be percent-encoded
+            when used in a URL path.
+        name:
+          type: string
+          description: Human-readable display name.
+        owner:
+          type: string
+          description: >
+            Email of the last team member who submitted an execution for this
+            simulation. Present when scope=team.
+        totalExecutions:
+          type: integer
+
+    SimulationListResponse:
+      allOf:
+        - $ref: "#/components/schemas/PaginationMeta"
+        - type: object
+          required:
+            - items
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/SimulationSummary"
+
+    TimeSeries:
+      type: object
+      description: >
+        A pair of equal-length numeric arrays representing the x (time) and y
+        (value) axes.
+      required:
+        - x
+        - y
+      properties:
+        x:
+          type: array
+          minItems: 1
+          items:
+            type: number
+        y:
+          type: array
+          minItems: 1
+          items:
+            type: number
+
+    TimeSeriesMap:
+      type: object
+      description: >
+        A map of signal names to their time-series data.
+      additionalProperties:
+        $ref: "#/components/schemas/TimeSeries"
+
+    ExecutionSummary:
+      type: object
+      required:
+        - id
+        - createdAt
+        - status
+      properties:
+        id:
+          type: string
+          description: Unique execution identifier.
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - completed
+            - failed
+
+    ExecutionListResponse:
+      allOf:
+        - $ref: "#/components/schemas/PaginationMeta"
+        - type: object
+          required:
+            - items
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ExecutionSummary"
+
+    VersionInfo:
+      type: object
+      required:
+        - version
+      properties:
+        version:
+          type: string
+        build:
+          type: string
+          description: Build hash or identifier.
+
+  responses:
+    UnauthorizedError:
+      description: Authentication token is missing or invalid
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            { "code": "UNAUTHORIZED", "message": "Authentication token is missing or invalid." }
+    Forbidden:
+      description: Authenticated but insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            { "code": "FORBIDDEN", "message": "You do not have permission to perform this action." }
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            { "code": "RATE_LIMIT", "message": "Too many requests. Please retry after 60 seconds." }
+
+  parameters:
+    SimulationId:
+      name: simulationId
+      in: path
+      description: >
+        The simulation's display name, exactly as passed to
+        CMODEL_SIMULATE(...) in the source. Not a slug or UUID - may contain
+        spaces and other characters, and must be percent-encoded when used in
+        a URL path.
+      required: true
+      schema:
+        type: string
+    ExecutionId:
+      name: executionId
+      in: path
+      description: Unique string identifying the execution.
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      description: Maximum number of items to return.
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      description: Number of items to skip.
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+  securitySchemes:
+    keycloak:
+      type: openIdConnect
+      openIdConnectUrl: https://auth.cppmodel.com/realms/CppModel/.well-known/openid-configuration
+      description: >
+        Obtain a token via the Resource Owner Password Credentials grant
+        against the token_endpoint from the discovery document above, using
+        client_id=cppmodel-frontend (public client, no client_secret) and your
+        CppModel username/password. Access tokens are short-lived
+        (expires_in is typically 300s) - fetch a new one per session rather
+        than caching it. This is an interim mechanism; a dedicated API client
+        (and possibly long-lived tokens) is planned to replace it.

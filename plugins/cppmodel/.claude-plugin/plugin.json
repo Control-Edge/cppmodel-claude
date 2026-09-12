@@ -1,0 +1,13 @@
+{
+  "name": "cppmodel",
+  "displayName": "CppModel Toolkit",
+  "version": "0.1.0",
+  "description": "Build, run, and query CppModel simulations and their Workspace API results",
+  "author": {
+    "name": "CppModel",
+    "url": "https://cppmodel.com"
+  },
+  "homepage": "https://cppmodel.com",
+  "license": "MIT",
+  "keywords": ["cpp", "simulation", "modeling", "cppmodel"]
+}
