@@ -13,7 +13,7 @@ A Claude Code plugin for projects using the CppModel libraries. Three skills:
 ## Install
 
 ```
-/plugin marketplace add <this-repo>
+/plugin marketplace add git@github.com:Control-Edge/cppmodel-claude.git
 /plugin install cppmodel@cppmodel-tools
 ```
 

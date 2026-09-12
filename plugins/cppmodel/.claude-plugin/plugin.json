@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "description": "Build, run, and query CppModel simulations and their Workspace API results",
   "author": {
-    "name": "CppModel",
-    "url": "https://cppmodel.com"
+    "name": "Control Edge AB",
+    "url": "https://cedge.se"
   },
   "homepage": "https://cppmodel.com",
   "license": "MIT",
