@@ -10,7 +10,7 @@
       "source": "./plugins/cppmodel",
       "displayName": "CppModel Toolkit",
       "description": "Build, run, and query CppModel simulations and their Workspace API results",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "license": "MIT"
     }
   ]
