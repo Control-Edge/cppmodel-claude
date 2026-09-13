@@ -1,7 +1,9 @@
 # CppModel Tools
 
-A Claude Code plugin for projects using the CppModel libraries. Three skills:
+A Claude Code plugin for projects using the CppModel libraries. Four skills:
 
+- **`cppmodel:decouple-component`** - decouple a vendor-coupled controller component (one that
+  calls a vendor BSW/RTOS/HAL API directly) so it can run in isolation under CppModel.
 - **`cppmodel:plant-model`** - build a minimal plant model for a new physical mechanism (asks
   about its sensors, actuators, and timing/velocity first) and scaffold a starter simulation file.
 - **`cppmodel:simulation-testing`** - write, extend, build, run, and debug a CModel-based
@@ -32,6 +34,7 @@ requires a valid CppModel account.
 
 ## What's inside
 
+- `plugins/cppmodel/skills/decouple-component/SKILL.md` - the vendor-decoupling skill
 - `plugins/cppmodel/skills/plant-model/SKILL.md` - the model-authoring skill
 - `plugins/cppmodel/skills/simulation-testing/SKILL.md` - the write/debug-tests skill
 - `plugins/cppmodel/skills/simulations/SKILL.md` - the query skill
