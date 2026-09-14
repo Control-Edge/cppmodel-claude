@@ -23,6 +23,13 @@ starting, since the real convention (struct field naming, file layout) is always
 A component in this shape needs no HAL of any kind under CppModel - the simulation just constructs
 the struct, sets fields, and calls the function directly.
 
+This is the **controller** side of the plant/controller split described in
+`cppmodel:simulation-testing`. Once decoupled, this component is normally the real code under test,
+exercised against a simulated plant (`cppmodel:plant-model`): its `in_signals`/`inputs` correspond
+to the plant model's `sensors` struct, and its `status`/`outputs` correspond to the plant model's
+`actuators` struct - only the plant model's boundary goes through `CppModel_getInput`/`setOutput`,
+this component is wired to it directly in-code.
+
 ## Diagnose first
 
 Before touching anything, read the target file and its includes and answer:

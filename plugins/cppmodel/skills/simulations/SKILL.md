@@ -44,3 +44,12 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh --workspace <id> ...         # o
 The simulation name is exactly the string passed to `CMODEL_SIMULATE(...)` in the source - it may contain spaces, quote it.
 
 Each command prints pretty-printed JSON. The full API contract (endpoints, response shapes, auth scheme) is documented in `${CLAUDE_PLUGIN_ROOT}/api/workspace-api.yaml` - read it if a request needs something the script doesn't already cover.
+
+## Interpreting input/output signals in the results
+
+Whether a signal in the returned time series is a `CppModel_getInput*` (input) or
+`CppModel_setOutput*` (output) tells you it's crossing into or out of whichever component that
+simulation wraps - not necessarily "actuator" or "sensor" specifically. See
+`cppmodel:simulation-testing`'s "which side is being simulated" note: for a plant simulation,
+inputs are actuator commands and outputs are sensor readings; for a controller simulation, inputs
+are sensor readings and outputs are actuator commands.

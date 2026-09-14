@@ -3,6 +3,15 @@ name: cppmodel:plant-model
 description: Build a minimal plant model (the simulated physical mechanism) for a new CppModel simulation, and scaffold a starter simulation file wiring it to the controller under test. Use when a customer needs to simulate a new physical mechanism (actuator, motor, sensor pair) that has no model yet.
 ---
 
+## Scope: this builds the plant side
+
+This skill assumes the **plant** is the component being simulated and the **controller** is the
+real code under test - see `cppmodel:simulation-testing`'s "which side is being simulated" note.
+Concretely: the model's `actuators` struct is what the controller commands into it (read via
+`CppModel_getInput*` in the simulation file), and its `sensors` struct is what it reports back to
+the controller (published via `CppModel_setOutput*`). If instead the controller is the side being
+simulated and the plant is real/external, this skill's shape doesn't apply as-is - the roles invert.
+
 ## What this produces
 
 1. A model `.h`/`.c` pair (naming convention: `<name>Model.h` / `<name>Model.c`) - wherever this

@@ -3,6 +3,26 @@ name: cppmodel:simulation-testing
 description: Write, extend, or debug a CModel-based simulation test (CMODEL_CYCLIC/CMODEL_SIMULATE). Use when asked to add test coverage to a CppModel simulation, when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data.
 ---
 
+## Which side is being simulated
+
+A CppModel simulation always wraps exactly one component - the plant (the physical mechanism) or
+the controller - as the thing exposed to CppModel; the other component still exists as real code in
+the same binary, wired to the wrapped one directly in-code, not through
+`CppModel_getInput`/`setOutput`. Only the wrapped component's boundary goes through CppModel, so
+what counts as an "input" vs an "output" flips depending on which side that is:
+
+- **Simulating the plant** (the common case - see `cppmodel:plant-model`): `CppModel_getInput*`
+  pulls in the controller's actuator commands to drive the model, `CppModel_setOutput*` publishes
+  the sensor readings the model produces back to the real controller.
+- **Simulating the controller** (e.g. a decoupled component from `cppmodel:decouple-component`
+  exercised on its own): `CppModel_getInput*` pulls in the sensor readings that feed the real
+  controller logic, `CppModel_setOutput*` publishes the actuator commands it produces.
+
+Even when both a plant model and a controller exist in the same project, pick which one is under
+test before writing `CMODEL_CYCLIC` - that decision decides which struct (actuators or sensors)
+gets read via `CppModel_getInput*` and which gets published via `CppModel_setOutput*`. Don't
+straddle both.
+
 ## Anatomy of a CModel simulation
 
 A simulation `.c` file has three required pieces:
