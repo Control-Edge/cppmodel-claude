@@ -23,6 +23,14 @@ starting, since the real convention (struct field naming, file layout) is always
 A component in this shape needs no HAL of any kind under CppModel - the simulation just constructs
 the struct, sets fields, and calls the function directly.
 
+Language: match whatever language the surrounding production controller code already uses (check
+the file being decoupled and its siblings) - almost always C, since vendor BSW/RTOS/HAL APIs
+typically are, and this extracted module is normally compiled into the real embedded target
+alongside it, not just into the simulation binary. This is a hard technical constraint, not a
+style choice - it's independent of whatever language the simulation harness itself ends up in (see
+`cppmodel:language`, used by `cppmodel:plant-model` and `cppmodel:simulation-testing`), and doesn't
+change even if this project's simulations are C++.
+
 This is the **controller** side of the plant/controller split described in
 `cppmodel:simulation-testing`. Once decoupled, this component is normally the real code under test,
 exercised against a simulated plant (`cppmodel:plant-model`): its `in_signals`/`inputs` correspond

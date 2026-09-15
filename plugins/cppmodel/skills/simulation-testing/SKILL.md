@@ -1,46 +1,87 @@
 ---
 name: cppmodel:simulation-testing
-description: Write, extend, or debug a CModel-based simulation test (CMODEL_CYCLIC/CMODEL_SIMULATE). Use when asked to add test coverage to a CppModel simulation, when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data.
+description: Write, extend, or debug a CppModel-based simulation test, in C (CppModelBase's CModel.h API, directly or via a project's own CMODEL_CYCLIC/CMODEL_SIMULATE macros) or C++ (CppModelBase::Simulation, directly or via a project's own wrapper class). Use when asked to add test coverage to a CppModel simulation, when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data.
 ---
 
 ## Which side is being simulated
 
 A CppModel simulation always wraps exactly one component - the plant (the physical mechanism) or
 the controller - as the thing exposed to CppModel; the other component still exists as real code in
-the same binary, wired to the wrapped one directly in-code, not through
-`CppModel_getInput`/`setOutput`. Only the wrapped component's boundary goes through CppModel, so
-what counts as an "input" vs an "output" flips depending on which side that is:
+the same binary, wired to the wrapped one directly in-code, not through the input/output boundary
+(`CppModel_getInput*`/`setOutput*` in C, `inputs["..."]`/`outputs["..."]` in C++). Only the wrapped
+component's boundary crosses that line, so what counts as an "input" vs an "output" flips depending
+on which side that is:
 
-- **Simulating the plant** (the common case - see `cppmodel:plant-model`): `CppModel_getInput*`
-  pulls in the controller's actuator commands to drive the model, `CppModel_setOutput*` publishes
-  the sensor readings the model produces back to the real controller.
+- **Simulating the plant** (the common case - see `cppmodel:plant-model`): inputs pull in the
+  controller's actuator commands to drive the model, outputs publish the sensor readings the model
+  produces back to the real controller.
 - **Simulating the controller** (e.g. a decoupled component from `cppmodel:decouple-component`
-  exercised on its own): `CppModel_getInput*` pulls in the sensor readings that feed the real
-  controller logic, `CppModel_setOutput*` publishes the actuator commands it produces.
+  exercised on its own): inputs pull in the sensor readings that feed the real controller logic,
+  outputs publish the actuator commands it produces.
 
 Even when both a plant model and a controller exist in the same project, pick which one is under
-test before writing `CMODEL_CYCLIC` - that decision decides which struct (actuators or sensors)
-gets read via `CppModel_getInput*` and which gets published via `CppModel_setOutput*`. Don't
-straddle both.
+test before writing the per-cycle callback - that decision decides which struct (actuators or
+sensors) gets read as input and which gets published as output. Don't straddle both.
 
-## Anatomy of a CModel simulation
+## Language: C or C++
 
-A simulation `.c` file has three required pieces:
+Only relevant when creating a **brand-new** simulation file - skip this when extending or
+debugging an existing one, whose language is already fixed by its file extension. Use the
+`cppmodel:language` skill to decide, then jump to the matching subsection below.
 
-- `CMODEL_CYCLIC() { ... }` - the per-cycle callback, invoked once per simulated `task_period_ms`.
-  Read simulated inputs into your model/controller state with
-  `CppModel_getInput{U8,I32,...}(self, "name", var)`, run one cycle of the code under test, publish
-  outputs with `CppModel_setOutput{U8,I32,...}(self, "name", value)`, and always set
-  `CppModel_setOutputU8(self, "CppModel.StepResult", result)` where `result` is 1 (pass) or 0
-  (fail) for that cycle. Any single cycle returning 0 fails the whole run - there is no "mostly
-  passing".
-- `CMODEL_SIMULATE("Name", totalTime_ms, task_period_ms)` - expands to `main()`; builds and runs
-  the simulation for `totalTime_ms` at `task_period_ms` resolution.
-- A step schedule: an array of `{function, duration_ms}` pairs (`InternalStep_ts`) run through
-  `RunInternalSteps` (from `ModelHelpers.h`), chaining multiple test scenarios in one file. Give
-  each distinct scenario a fresh `Init`-style reset function beforehand, unless deliberately
-  continuing from the previous scenario's end state (also a valid, commonly used pattern - e.g.
-  confirming a signal set in one step has the expected effect at the very start of the next).
+## Anatomy of a simulation
+
+Every CppModel simulation, in either language, does the same three things per cycle: runs one
+callback per simulated `task_period_ms`/step, crosses the simulation boundary (read simulated
+inputs, run one cycle of the code under test, publish outputs), and reports pass/fail for that
+cycle via a `CppModel.StepResult` signal (1 = pass, 0 = fail - any single cycle returning 0 fails
+the whole run, there's no "mostly passing"). How that's actually wired up is project-specific and
+you must check what already exists before picking one - don't assume either shape below is what
+this project uses without looking.
+
+### C++
+
+Check first whether this project has its own base class layered on top of
+`CppModelBase::Simulation` (`cppmodel/Simulation.h`) - e.g. one project's
+`simulations/common/EcoLogSimulation.hpp` (`EcoLog::Simulation`) adds a `steps` map of
+`{time_ms, function}` chained through `CallStep()`, an `ExecuteRun(uint64_t timeMs)` override as
+the per-cycle entry point, and `CoverRequirement(requirementId, implementedBy)` /
+`PrintCoveredRequirements()` for tracing which requirements each simulation exercises out to a
+`requirements.json` file. If a wrapper like this exists anywhere in the project, subclass *that*
+and follow its exact shape (populate its step container, override its per-cycle method, call its
+requirement-tracing helper if the scenario covers a named requirement) - don't build a second,
+competing mechanism alongside it.
+
+If no such wrapper exists, subclass `CppModelBase::Simulation` directly: override
+`RunCyclic(double time)` as the per-cycle callback, use `inputs["name"]` / `outputs["name"]`
+(`SimulationInputs`/`SimulationOutputs`, indexable like a map) to cross the boundary, and always
+set `outputs["CppModel.StepResult"]`. `main()` constructs the simulation object and calls
+`.Simulate()`.
+
+### C
+
+Check first whether the project has a `ModelHelpers.h` (or similarly-named header) providing
+`CMODEL_CYCLIC() { ... }` / `CMODEL_SIMULATE("Name", totalTime_ms, task_period_ms)` macros (the
+latter expands to `main()`) plus an `InternalStep_ts` step-schedule array run through
+`RunInternalSteps`. Grep for `CMODEL_SIMULATE`/`ModelHelpers.h` first - if present, use it exactly
+as existing C simulations in the project do.
+
+If absent, use the lower-level `CModel.h` API directly: `CppModel_create(name, totalTime_ms,
+task_period_ms)` to build the simulation, `CppModel_setRunStepFunction(sim, RunCyclic)` to
+register a per-cycle callback shaped `void RunCyclic(CModelSimulation_ts *self, unsigned long
+time)`, `CppModel_getInput{U8,I32,...}(self, "name", fallback)` / `CppModel_setOutput{U8,I32,...}
+(self, "name", value)` to cross the boundary, `CppModel_Simulate(sim)` to run it, and
+`CppModel_getSimulationResult(sim)` as `main`'s return value. Always call
+`CppModel_setOutputU8(self, "CppModel.StepResult", result)` every cycle.
+
+### Either way
+
+The simulation still needs a step schedule chaining multiple test scenarios in one file, using
+whatever mechanism the chosen path above provides (a `steps` map/vector, or `InternalStep_ts` +
+`RunInternalSteps`). Give each distinct scenario a fresh `Init`-style reset function beforehand,
+unless deliberately continuing from the previous scenario's end state (also a valid, commonly used
+pattern - e.g. confirming a signal set in one step has the expected effect at the very start of
+the next).
 
 Assertion style: prefer "eventually true, with a grace window" over exact cycle-counting, e.g.
 `return sawExpectedEvent || (localTime_ms < someGenerousMs);`. Real timing (motor ramps, debounce

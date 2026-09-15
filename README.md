@@ -1,16 +1,26 @@
 # CppModel Tools
 
-A Claude Code plugin for projects using the CppModel libraries. Four skills:
+A Claude Code plugin for projects using the CppModel libraries. Six skills:
 
 - **`cppmodel:decouple-component`** - decouple a vendor-coupled controller component (one that
   calls a vendor BSW/RTOS/HAL API directly) so it can run in isolation under CppModel.
 - **`cppmodel:plant-model`** - build a minimal plant model for a new physical mechanism (asks
   about its sensors, actuators, and timing/velocity first) and scaffold a starter simulation file.
-- **`cppmodel:simulation-testing`** - write, extend, build, run, and debug a CModel-based
-  simulation test (`CMODEL_CYCLIC`/`CMODEL_SIMULATE`), including using the API trace to pinpoint
-  why a test failed instead of guessing from stdout.
+- **`cppmodel:simulation-testing`** - write, extend, build, run, and debug a CppModel-based
+  simulation test, in either C or C++ (whichever the project already uses, or is chosen via
+  `cppmodel:language`), including using the API trace to pinpoint why a test failed instead of
+  guessing from stdout.
 - **`cppmodel:simulations`** - query the Workspace API: list your simulations, fetch a
   simulation's latest results, or list its execution history.
+- **`cppmodel:language`** - decides C vs C++ for a new plant model or simulation file: checks a
+  stored per-project preference (`.claude/cppmodel.local.json`) first, otherwise detects the
+  project's existing convention or asks, and can remember the answer so it isn't asked again. Used
+  automatically by `cppmodel:plant-model` and `cppmodel:simulation-testing`.
+- **`cppmodel:update-dependencies`** - downloads the latest CppModel SDK from
+  `download.cppmodel.com` for the right platform/toolchain, diffs its headers against what's
+  already vendored to catch interface changes (`RunCyclic`'s signature especially), fixes
+  unambiguous call-site breakage and asks about anything unclear, then rebuilds to verify before
+  offering to sync the version pinned in CI/docs.
 
 ## Install
 
@@ -38,6 +48,8 @@ requires a valid CppModel account.
 - `plugins/cppmodel/skills/plant-model/SKILL.md` - the model-authoring skill
 - `plugins/cppmodel/skills/simulation-testing/SKILL.md` - the write/debug-tests skill
 - `plugins/cppmodel/skills/simulations/SKILL.md` - the query skill
+- `plugins/cppmodel/skills/language/SKILL.md` - the C vs C++ decision skill
+- `plugins/cppmodel/skills/update-dependencies/SKILL.md` - the SDK update skill
 - `plugins/cppmodel/scripts/cppmodel-fetch.sh` / `.ps1` - the CLI the query skill wraps (bash and
   PowerShell versions, list / get / executions, with automatic per-workspace routing)
 - `plugins/cppmodel/api/workspace-api.yaml` - the full Workspace API spec

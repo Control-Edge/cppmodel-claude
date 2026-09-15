@@ -14,12 +14,22 @@ simulated and the plant is real/external, this skill's shape doesn't apply as-is
 
 ## What this produces
 
-1. A model `.h`/`.c` pair (naming convention: `<name>Model.h` / `<name>Model.c`) - wherever this
-   project keeps its models. Don't assume a path; ask, or look for an existing `models/` folder
-   near the other simulations first.
-2. A starter simulation file skeleton (`InitControl`/`InitModel`/`CMODEL_CYCLIC`/`CMODEL_SIMULATE`,
-   wiring the new model's actuators/sensors to the controller under test) with no real test
-   scenarios yet - hand off to the `cppmodel:simulation-testing` skill to fill those in.
+1. A model - wherever this project keeps its models. Don't assume a path; ask, or look for an
+   existing `models/` folder near the other simulations first. Shape depends on the language (see
+   below):
+   - **C**: a `.h`/`.c` pair (naming convention: `<name>Model.h` / `<name>Model.c`).
+   - **C++**: usually a single header-only `<Name>Model.h` with inline methods (this is the shape
+     already-existing C++ models in this kind of project tend to use), unless the project's own
+     convention already splits declaration/definition into a `.h`/`.cpp` pair - check first.
+2. A starter simulation file skeleton wiring the new model's actuators/sensors to the controller
+   under test, with no real test scenarios yet - hand off to the `cppmodel:simulation-testing`
+   skill to fill those in and to know how that skeleton should be shaped for this project.
+
+## Language: C or C++
+
+Use the `cppmodel:language` skill to decide before writing anything below - it covers checking for
+a stored project preference, detecting the project's existing convention, and asking/storing the
+answer.
 
 ## Questions to ask first
 
@@ -42,6 +52,8 @@ Don't guess these - ask, since they determine the model's shape:
    mechanism), and at what position(s) each sensor should read true.
 
 ## Two shapes, pick one and adapt
+
+Each is shown in both languages - use whichever the `cppmodel:language` step decided.
 
 **Bounded, end-stop mechanism** (e.g. a ladder/lift/cylinder):
 
@@ -84,6 +96,58 @@ void <name>ModelCyclic(<Name>Model_t *const context, const unsigned long current
 }
 ```
 
+C++ equivalent - a class over `CppModelBase::Model` (`cppmodel/Model.h`), plain public members
+instead of separate actuators/sensors/config structs (this is the shape an already-existing C++
+model in this kind of project is likely to use - check one if present and match it instead of this
+exactly):
+
+```cpp
+#include <cppmodel/Model.h>
+
+class <Name>Model : public CppModelBase::Model
+{
+public:
+    // actuators - commanded by the controller
+    bool <direction_a> = false;
+    bool <direction_b> = false;
+    // sensors - reported back to the controller
+    bool <sensor_name> = false;
+
+    sint32 position = 0;
+    bool is_moving_up = false;
+    bool is_moving_down = false;
+
+    uint32 delta_a = 0;
+    uint32 delta_b = 0;
+    uint32 max_position = 0;
+    uint32 sensor_active_position = 0;
+
+    inline <Name>Model() {}
+
+    inline void RunCyclic(double stepTime) override
+    {
+        const sint32 previousPosition = position;
+        if (<direction_a>)
+        {
+            position += delta_a;
+            if (position >= max_position) { position = max_position; }
+        }
+        else if (<direction_b>)
+        {
+            position -= delta_b;
+            if (position <= 0) { position = 0; }
+        }
+        <sensor_name> = position >= sensor_active_position;
+        is_moving_up = position > previousPosition;
+        is_moving_down = position < previousPosition;
+    }
+};
+```
+
+Unlike the C shape, nothing here goes through `CppModel_getInput*`/`setOutput*` - the simulation
+file just instantiates this class as a member and reads/writes its public fields directly each
+step (see `cppmodel:simulation-testing`).
+
 **Unbounded, indexed/rotating mechanism** (e.g. a feed wheel, a conveyor with repeating slots):
 
 ```c
@@ -114,6 +178,36 @@ void <name>ModelCyclic(<Name>Model_t *const context, const unsigned long current
 The `double precise_position` accumulator matters: truncating straight to an integer position each
 cycle loses fractional motion at low speeds and the position never advances. Always reset both
 `position` and `precise_position` together in any init/reset path.
+
+C++ equivalent:
+
+```cpp
+#include <cppmodel/Model.h>
+
+class <Name>Model : public CppModelBase::Model
+{
+public:
+    <ActuatorType> <speed_command> = 0;
+    bool <sensor_name> = false;
+
+    double sensor_ratio = 0.;
+    bool negativeDirection = false;
+
+    double precise_position = 0.;
+    sint32 position = 0;
+    bool is_moving = false;
+
+    inline <Name>Model() {}
+
+    inline void RunCyclic(double stepTime) override
+    {
+        precise_position += (double)<speed_command> * sensor_ratio * (negativeDirection ? -1 : 1);
+        position = (sint32)precise_position;
+        is_moving = <speed_command> != 0;
+        <sensor_name> = position % <repeat_period> < <window> || position % <repeat_period> > <repeat_period - window>;
+    }
+};
+```
 
 ## Converting real-world timing into a delta-per-cycle
 
