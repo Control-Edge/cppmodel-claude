@@ -42,13 +42,11 @@ this project uses without looking.
 ### C++
 
 Check first whether this project has its own base class layered on top of
-`CppModelBase::Simulation` (`cppmodel/Simulation.h`) - e.g. one project's
-`simulations/common/EcoLogSimulation.hpp` (`EcoLog::Simulation`) adds a `steps` map of
-`{time_ms, function}` chained through `CallStep()`, an `ExecuteRun(uint64_t timeMs)` override as
-the per-cycle entry point, and `CoverRequirement(requirementId, implementedBy)` /
-`PrintCoveredRequirements()` for tracing which requirements each simulation exercises out to a
-`requirements.json` file. If a wrapper like this exists anywhere in the project, subclass *that*
-and follow its exact shape (populate its step container, override its per-cycle method, call its
+`CppModelBase::Simulation` (`cppmodel/Simulation.h`) - e.g. a project-specific wrapper might add a
+`steps` map of `{time_ms, function}` chained through a `CallStep()`-like helper, a per-cycle entry
+point override, and helpers for tracing which requirements each simulation exercises out to a
+requirements file. If a wrapper like this exists anywhere in the project, subclass *that* and
+follow its exact shape (populate its step container, override its per-cycle method, call its
 requirement-tracing helper if the scenario covers a named requirement) - don't build a second,
 competing mechanism alongside it.
 
