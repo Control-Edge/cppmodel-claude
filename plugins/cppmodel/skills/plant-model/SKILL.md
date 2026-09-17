@@ -3,6 +3,12 @@ name: cppmodel:plant-model
 description: Build a minimal plant model (the simulated physical mechanism) for a new CppModel simulation, and scaffold a starter simulation file wiring it to the controller under test. Use when a customer needs to simulate a new physical mechanism (actuator, motor, sensor pair) that has no model yet.
 ---
 
+## Goal
+
+Build the minimal *logic* model of the real mechanism's physics - just enough behavior to drive
+and exercise the real controller correctly, not an accurate physics simulation. See "Keep it
+minimal" below for what that does and doesn't mean.
+
 ## Scope: this builds the plant side
 
 This skill assumes the **plant** is the component being simulated and the **controller** is the
@@ -24,6 +30,12 @@ simulated and the plant is real/external, this skill's shape doesn't apply as-is
 2. A starter simulation file skeleton wiring the new model's actuators/sensors to the controller
    under test, with no real test scenarios yet - hand off to the `cppmodel:simulation-testing`
    skill to fill those in and to know how that skeleton should be shaped for this project.
+
+If a single request asks for both a new model and a working simulation in one go, still do these
+in order - finish and settle the model (including the questions below) before starting the
+simulation skeleton, don't build them in parallel or sketch the simulation first and backfill the
+model to fit it. The model is the part the customer's answers actually shape; the simulation
+skeleton is mechanical once the model's actuators/sensors are fixed.
 
 ## Language: C or C++
 
@@ -54,15 +66,26 @@ with a later one, push on it rather than filling the gap with a guess.
 3. **What does the controller read back (sensors)?** Booleans from limit/proximity switches,
    a position/pulse counter, a pressure or photocell reading. Match the controller's `inputs`
    struct.
-4. **Timing**: how long does a full traverse take in the real machine (e.g. "fully extends in
+4. **How does it interact with the operator, the environment, or other mechanisms?** E.g. a manual
+   override or e-stop the operator can trigger independent of the controller, ambient conditions
+   (temperature, load) that change its behavior, or interlocks/shared state with a neighboring
+   mechanism (one machine can't move until another is clear). For each one, ask specifically
+   whether the real controller actually commands or reads it (e.g. an e-stop wired to the
+   controller as a real input) - if so, it's a genuine actuator/sensor and belongs in those structs
+   like anything else. If instead it's something only the simulation itself would inject to drive a
+   scenario (the controller never sees it directly), it's model config/state instead, poked
+   directly by the simulation's step schedule rather than crossing the
+   `CppModel_getInput*`/`setOutput*` boundary - don't force it into `actuators`/`sensors` just
+   because it's related to them.
+5. **Timing**: how long does a full traverse take in the real machine (e.g. "fully extends in
    about 2 seconds")? Different speeds for different directions/actuators? What `task_period_ms`
    will the simulation run at (existing simulations in this project are usually 1ms - check one)?
-5. **Limits and thresholds**: the position range (0..max, or the repeat period for a wraparound
+6. **Limits and thresholds**: the position range (0..max, or the repeat period for a wraparound
    mechanism), and at what position(s) each sensor should read true.
-6. **Anything that happens between commanding and sensing that isn't obvious from the I/O alone?**
+7. **Anything that happens between commanding and sensing that isn't obvious from the I/O alone?**
    E.g. does a direction change require stopping first, is there a delay before a sensor responds,
-   can two actuators be active at once and if so what happens, are there interlocks or fault
-   conditions. These won't show up by counting signals - they only surface by asking.
+   can two actuators be active at once and if so what happens, are there internal faults not
+   already covered above. These won't show up by counting signals - they only surface by asking.
 
 ## Two shapes, pick one and adapt
 
