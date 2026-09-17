@@ -3,6 +3,23 @@ name: cppmodel:simulation-testing
 description: Write, extend, or debug a CppModel-based simulation test, in C (CppModelBase's CModel.h API, directly or via a project's own CMODEL_CYCLIC/CMODEL_SIMULATE macros) or C++ (CppModelBase::Simulation, directly or via a project's own wrapper class). Use when asked to add test coverage to a CppModel simulation, when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data.
 ---
 
+## Requirements: check credentials before running or debugging anything
+
+Running a simulation binary or fetching its results both need a valid CppModel license and `.env`
+at the project root with:
+
+```
+CPPMODEL_USERNAME=...
+CPPMODEL_PASSWORD=...
+CPPMODEL_CLIENT_ID=cppmodel-frontend
+```
+
+Check this *before* running a binary or querying results, not after something fails. If `.env` is
+missing these, tell the user and stop - do not guess, fabricate, or improvise a workaround (e.g.
+searching the local filesystem for prior results, or writing new code to reconstruct what the API
+would have returned). Writing or editing test/model code doesn't need credentials; running a
+simulation or reading its outcome does.
+
 ## Which side is being simulated
 
 A CppModel simulation always wraps exactly one component - the plant (the physical mechanism) or
@@ -93,8 +110,8 @@ trusting them.
 cmake --build build --target <SimulationName>
 ```
 
-Then run the binary directly - it needs the CppModel credentials in `.env` (see the
-`cppmodel:simulations` skill) sourced into its environment:
+Then run the binary directly - it needs the CppModel credentials in `.env` (see "Requirements"
+above) sourced into its environment:
 
 ```
 set -a && source .env && set +a && ./build/<path-to>/<SimulationName>
@@ -115,11 +132,15 @@ even run manually indefinitely without ever actually gating anything.
 
 ## Debugging a failure: query the real trace, don't guess
 
-The binary's stdout gives nothing to work with beyond pass/fail. Use
+The binary's stdout gives nothing to work with beyond pass/fail and a `UI: https://...` link -
+there is no local log, file, or cache holding the per-cycle signal trace. It only exists behind the
+Workspace API. Use the `cppmodel:simulations` skill's
 `${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh "<SimulationName>"` (or `GET /simulations/{id}`
-from the Workspace API directly) to pull the full execution trace: every
-`CppModel_setOutput`/`getInput` signal as a time series, plus `CppModel.StepResult` and
-`internalStepNumber`.
+from the Workspace API directly, per `${CLAUDE_PLUGIN_ROOT}/api/workspace-api.yaml`) to pull the
+full execution trace: every `CppModel_setOutput`/`getInput` signal as a time series, plus
+`CppModel.StepResult` and `internalStepNumber`. Don't grep the project for prior output, don't add
+extra logging/printf/file-dumping to the simulation to work around this, and don't write a new
+script to reconstruct the trace - the fetch script already returns it.
 
 Workflow:
 

@@ -121,11 +121,14 @@ radius is known before editing anything:
 
 Once the staged headers/libs are confirmed compatible (or already patched per step 7), replace
 `dependencies/` with the staged copy - keep the step-4 backup until the next check passes. Rebuild
-and run the test suite the same way `cppmodel:simulation-testing` does:
+and run the test suite the same way `cppmodel:simulation-testing` does - `ctest` executes the same
+simulation binaries, so it needs the same credentials sourced first (see that skill's
+"Requirements" section; if `.env` is missing, stop and tell the user rather than reporting a false
+regression):
 
 ```
 cmake --build build --target all
-cd build && ctest --output-on-failure
+set -a && source .env && set +a && cd build && ctest --output-on-failure
 ```
 
 If the build or tests fail after the best-effort fix, don't report success - state exactly what

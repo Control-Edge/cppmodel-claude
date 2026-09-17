@@ -33,12 +33,21 @@ answer.
 
 ## Questions to ask first
 
-Don't guess these - ask, since they determine the model's shape:
+Don't guess these - ask. Treat this like onboarding a new team member onto the machine: the goal
+isn't to collect five answers and move on, it's for the customer to actually walk you through how
+their machine behaves. A thin actuator/sensor count is not a signal that the machine itself is
+simple - two booleans in and one out can still hide interlocks, multi-stage motion, debounce or
+settling delays, or an internal state that never surfaces as its own sensor. Don't assume there's
+"no real model behind" a function just because its signature is small; ask until you understand
+the behavior, not until the struct fields are filled in. If an answer is vague or doesn't add up
+with a later one, push on it rather than filling the gap with a guess.
 
 1. **What kind of mechanism is it?** In particular: does it travel between two end-stops (a
    cylinder, a lift, a gate - bounded 0..max), or does it move past repeating positions
    continuously (a rotating disc, an indexing wheel, a conveyor - unbounded, wraps around)? This
-   decides which of the two shapes below to use.
+   decides which of the two shapes below to use - but if the real behavior doesn't cleanly fit
+   either (e.g. it pauses partway, has more than two directions, or a sensor depends on more than
+   position alone), say so and adapt rather than forcing it into the nearest template.
 2. **What does the controller command (actuators)?** Usually one or more booleans (e.g.
    `motor_up`/`motor_down`, `valve_open`) or a signed speed/PWM value. Match whatever the real
    controller code already outputs - look at its `outputs` struct.
@@ -50,6 +59,10 @@ Don't guess these - ask, since they determine the model's shape:
    will the simulation run at (existing simulations in this project are usually 1ms - check one)?
 5. **Limits and thresholds**: the position range (0..max, or the repeat period for a wraparound
    mechanism), and at what position(s) each sensor should read true.
+6. **Anything that happens between commanding and sensing that isn't obvious from the I/O alone?**
+   E.g. does a direction change require stopping first, is there a delay before a sensor responds,
+   can two actuators be active at once and if so what happens, are there interlocks or fault
+   conditions. These won't show up by counting signals - they only surface by asking.
 
 ## Two shapes, pick one and adapt
 
@@ -229,7 +242,15 @@ SI units. If a customer's description implies one of those, don't refuse it outr
 a simpler delta/threshold version would already exercise the controller correctly, and build that
 instead unless they confirm the extra complexity is actually needed.
 
+This is about keeping the *implementation* minimal, not the *understanding*. Simplify the code, not
+the questioning that precedes it - decide what to leave out because the customer told you it
+doesn't matter for the controller, not because you didn't ask.
+
 ## Next step
 
-Once the model and starter simulation exist, use the `cppmodel:simulation-testing` skill to add
-real test scenarios and assertions.
+Building the model is not the end of the task - it's not runnable or verifiable on its own. Once
+the model and starter simulation exist, use the `cppmodel:simulation-testing` skill to add real
+test scenarios and assertions, build, and run it; that skill in turn hands off to
+`cppmodel:simulations` to check credentials and fetch results from the Workspace API. Don't stop
+after scaffolding the model and call the task done - a customer asking to "simulate X" wants it
+built, tested, run, and its results checked, not just the model file.
