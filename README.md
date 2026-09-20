@@ -1,6 +1,6 @@
 # CppModel Tools
 
-A Claude Code plugin for projects using the CppModel libraries. Six skills:
+A Claude Code plugin for projects using the CppModel libraries. Seven skills:
 
 - **`cppmodel:decouple-component`** - decouple a vendor-coupled controller component (one that
   calls a vendor BSW/RTOS/HAL API directly) so it can run in isolation under CppModel.
@@ -21,6 +21,11 @@ A Claude Code plugin for projects using the CppModel libraries. Six skills:
   already vendored to catch interface changes (`RunCyclic`'s signature especially), fixes
   unambiguous call-site breakage and asks about anything unclear, then rebuilds to verify before
   offering to sync the version pinned in CI/docs.
+- **`cppmodel:github-ci`** - generates a GitHub Actions workflow that builds the project and runs
+  its simulations, asking which platform and compiler to target from what CppModel actually
+  publishes a prebuilt SDK for. GitHub Actions only for now. Installs the plugin's
+  `install-cppmodel.sh`/`.ps1` templates into the project if it doesn't already have an equivalent
+  script, so CI and local dependency fetches share the same logic.
 
 ## Install
 
@@ -50,6 +55,10 @@ requires a valid CppModel account.
 - `plugins/cppmodel/skills/simulations/SKILL.md` - the query skill
 - `plugins/cppmodel/skills/language/SKILL.md` - the C vs C++ decision skill
 - `plugins/cppmodel/skills/update-dependencies/SKILL.md` - the SDK update skill
+- `plugins/cppmodel/skills/github-ci/SKILL.md` - the GitHub Actions CI pipeline skill
 - `plugins/cppmodel/scripts/cppmodel-fetch.sh` / `.ps1` - the CLI the query skill wraps (bash and
   PowerShell versions, list / get / executions, with automatic per-workspace routing)
+- `plugins/cppmodel/scripts/templates/install-cppmodel.sh` / `.ps1` - templates the
+  `cppmodel:github-ci` and `cppmodel:update-dependencies` skills copy into a project (not run from
+  the plugin itself) to detect platform/compiler and fetch the CppModel SDK into `dependencies/`
 - `plugins/cppmodel/api/workspace-api.yaml` - the full Workspace API spec

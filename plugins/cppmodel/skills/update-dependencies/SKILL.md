@@ -22,16 +22,44 @@ Workspace API/license, not for fetching the SDK.)
 There's no version marker inside `dependencies/` itself - don't try to infer one from its
 contents. Instead check wherever the project *pins* a version to download it, most commonly a CI
 config (e.g. grep `bitbucket-pipelines.yml`, `.github/workflows/*.yml`, `Jenkinsfile`, or any
-setup script for a `download.cppmodel.com/CppModel-<version>-...` URL). Also check docs
-(`README.md` and similar) for a stated version number. If these disagree with each other - which
-happens, e.g. a CI pin that's been bumped without updating the README, or vice versa - tell the
-user about the mismatch rather than silently trusting one of them.
+setup script for a `download.cppmodel.com/CppModel-<version>-...` URL) or a committed install
+script (see step 1a - a `VERSION`/`-Version` default other than `latest`, if it sets one). Also
+check docs (`README.md` and similar) for a stated version number. If these disagree with each
+other - which happens, e.g. a CI pin that's been bumped without updating the README, or vice versa
+- tell the user about the mismatch rather than silently trusting one of them.
+
+## 1a. Check for an existing install script - prefer it over hand-rolling detection/download
+
+Grep the project for `download.cppmodel.com` in a shell script (common names:
+`install-cppmodel.sh`/`.ps1`, `scripts/update-cppmodel.sh`/`.ps1` - see `cppmodel:github-ci` step 2,
+which installs `${CLAUDE_PLUGIN_ROOT}/scripts/templates/install-cppmodel.sh`/`.ps1` into projects
+that don't already have one). If the project has one, it already encapsulates steps 2-3 and 5
+below (OS/arch/compiler detection with override, live-version resolution via `VERSION`/`latest`,
+download, and flattening into a destination folder) - **use it** instead of re-deriving that logic:
+
+```
+DEPS_DIR=<step-5 staging dir> VERSION=<step-3 version> ./path/to/install-cppmodel.sh
+```
+
+```powershell
+& .\path\to\install-cppmodel.ps1 -DepsDir <step-5 staging dir> -Version <step-3 version>
+```
+
+Point `DEPS_DIR`/`-DepsDir` at the step-4/5 **staging** location, not the real `dependencies/` -
+this skill still needs the old copy intact for the step-6 diff before swapping anything in. If the
+script needs a compiler/platform argument it can't auto-detect unambiguously, resolve that the same
+way step 2 below would and pass it through (`COMPILER=`/`-Platform`). Skip straight to step 4 once
+this has staged a copy. Only fall through to steps 2-3-5 by hand if no such script exists yet - and
+in that case, once the update is verified (step 8), consider offering to add the plugin's template
+script to the project so future updates and CI (`cppmodel:github-ci`) can reuse it too.
 
 ## 2. Determine the target platform/toolchain - detect, don't hardcode
 
-`download.cppmodel.com` ships separate archives per OS and, for some OSes, per compiler/toolchain
-and architecture too (this evolves over time - see step 3, always check what's actually there
-rather than assuming a fixed set). Figure out which one this project/build needs, in this order:
+Skip this step if step 1a already found and used an install script - it does this detection
+itself. Otherwise: `download.cppmodel.com` ships separate archives per OS and, for some OSes, per
+compiler/toolchain and architecture too (this evolves over time - see step 3, always check what's
+actually there rather than assuming a fixed set). Figure out which one this project/build needs,
+in this order:
 
 1. **The project's own build system first.** For CMake: if a build directory already exists,
    read `CMakeCache.txt` for `CMAKE_CXX_COMPILER`/`CMAKE_GENERATOR`; otherwise check
@@ -52,7 +80,9 @@ rather than assuming a fixed set). Figure out which one this project/build needs
 
 ## 3. Find the latest version for that platform
 
-Fetch `https://download.cppmodel.com/` - it's a plain directory listing (`<a href="...">` entries
+Needed either way - even when step 1a's script handles the download itself, it still needs a
+concrete `VERSION` passed in (or `latest`, if deliberately tracking it). Fetch
+`https://download.cppmodel.com/` - it's a plain directory listing (`<a href="...">` entries
 with filename, date, size). Parse it for entries matching `CppModel-<version>-<platform
 suffix>.<ext>` for the platform/toolchain from step 2, and pick the highest semver version present
 for that exact platform suffix. `CppModel-latest-<platform suffix>.<ext>` aliases also exist, but
@@ -76,7 +106,8 @@ fails.
 
 ## 5. Download and stage - don't overwrite in place yet
 
-Download the chosen archive to a temp location and extract it into a **separate staging
+Skip this step if step 1a already staged a copy via the project's install script. Otherwise:
+download the chosen archive to a temp location and extract it into a **separate staging
 directory**, not directly over `dependencies/`. Follow whatever extraction convention the
 project's own CI already uses for this (e.g. `tar -xzf <file> -C <staging> --strip-components=1`
 for `.tar.gz`, or unzip for `.zip`) so the result has the same internal layout as before.
@@ -147,3 +178,6 @@ silently do**, to also:
 
 Treat both as shared/CI-affecting edits and confirm before making them, the same as any other
 change to CI configuration or committed documentation would be confirmed.
+
+If the project has no GitHub Actions CI pipeline yet to sync a pin into, that's a separate task -
+see `cppmodel:github-ci`, which builds one from scratch rather than updating an existing pin.
