@@ -31,7 +31,7 @@ other - which happens, e.g. a CI pin that's been bumped without updating the REA
 ## 1a. Check for an existing install script - prefer it over hand-rolling detection/download
 
 Grep the project for `download.cppmodel.com` in a shell script (common names:
-`install-cppmodel.sh`/`.ps1`, `scripts/update-cppmodel.sh`/`.ps1` - see `cppmodel:github-ci` step 2,
+`install-cppmodel.sh`/`.ps1`, `scripts/update-cppmodel.sh`/`.ps1` - see `cppmodel:ci-pipeline` step 2,
 which installs `${CLAUDE_PLUGIN_ROOT}/scripts/templates/install-cppmodel.sh`/`.ps1` into projects
 that don't already have one). If the project has one, it already encapsulates steps 2-3 and 5
 below (OS/arch/compiler detection with override, live-version resolution via `VERSION`/`latest`,
@@ -51,7 +51,7 @@ script needs a compiler/platform argument it can't auto-detect unambiguously, re
 way step 2 below would and pass it through (`COMPILER=`/`-Platform`). Skip straight to step 4 once
 this has staged a copy. Only fall through to steps 2-3-5 by hand if no such script exists yet - and
 in that case, once the update is verified (step 8), consider offering to add the plugin's template
-script to the project so future updates and CI (`cppmodel:github-ci`) can reuse it too.
+script to the project so future updates and CI (`cppmodel:ci-pipeline`) can reuse it too.
 
 ## 2. Determine the target platform/toolchain - detect, don't hardcode
 
@@ -180,4 +180,4 @@ Treat both as shared/CI-affecting edits and confirm before making them, the same
 change to CI configuration or committed documentation would be confirmed.
 
 If the project has no GitHub Actions CI pipeline yet to sync a pin into, that's a separate task -
-see `cppmodel:github-ci`, which builds one from scratch rather than updating an existing pin.
+see `cppmodel:ci-pipeline`, which builds one from scratch rather than updating an existing pin.
