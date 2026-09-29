@@ -166,6 +166,11 @@ If the build or tests fail after the best-effort fix, don't report success - sta
 failed, leave the backup in place, and ask before attempting further changes. Once the build and
 tests pass, it's safe to remove the backup.
 
+If `cppmodel-tool` was built from `dependencies/share/cppmodel/tools` (usually into
+`build/cppmodel-tool/`), rebuild it too, with `cmake --build build/cppmodel-tool`, so it matches
+the new SDK. If the new SDK is the first to ship that folder (0.6.2+), offer to build it; see
+`cppmodel:simulations`.
+
 ## 9. Offer to keep CI and docs in sync
 
 After a successful local update, report the version change (`<old> → <new>`) and **offer, don't

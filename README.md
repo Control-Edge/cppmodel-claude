@@ -10,7 +10,8 @@ A Claude Code plugin for projects using the CppModel libraries. Ten skills:
   simulation test, in either C or C++ (whichever the project already uses, or is chosen via
   `cppmodel:language`), including using the API trace to pinpoint why a test failed instead of
   guessing from stdout.
-- **`cppmodel:simulations`** - query the Workspace API: list your simulations, fetch a
+- **`cppmodel:simulations`** - query the Workspace API through `cppmodel-tool`, the command-line
+  tool that ships as source with the CppModel SDK (0.6.2+): list your simulations, fetch a
   simulation's latest results, list its execution history, or fetch one past execution.
 - **`cppmodel:simulation-inputs`** - run a simulation with specific inputs (time series) and
   parameters (constants) posted through the Workspace API, without editing or rebuilding it. Finds
@@ -58,8 +59,6 @@ CPPMODEL_USERNAME=...
 CPPMODEL_PASSWORD=...
 ```
 
-`CPPMODEL_CLIENT_ID` is optional; the plugin defaults it to `cppmodel-frontend`.
-
 Installing the plugin is free and requires nothing further; using it against real data still
 requires a CppModel account. Free accounts use the shared `free-workspace.cppmodel.com` workspace
 and licensed ones their dedicated `w<number>.cppmodel.com` workspace. The plugin picks the right
@@ -80,11 +79,9 @@ one from your login automatically, and every skill works the same with either.
   to report OS, compilers, tools, libraries, and the currently published SDK builds
 - `plugins/cppmodel/skills/simulation-inputs/SKILL.md` - the inputs/parameters skill
 - `plugins/cppmodel/skills/parameter-sweep/SKILL.md` - the sweep skill
-- `plugins/cppmodel/scripts/cppmodel-fetch.sh` / `.ps1` - the CLI the query skill wraps (bash and
-  PowerShell versions, list / get / executions / execution / inputs / set-inputs / delete, with automatic
-  per-workspace routing)
 - `plugins/cppmodel/scripts/cppmodel-sweep.sh` / `.ps1` - the sweep runner: posts each run's
-  inputs, runs the binary, fetches that run's execution, and checks the posted values were used
+  inputs, runs the binary, fetches that run's execution, and checks the posted values were used.
+  Talks to the API through the SDK's `cppmodel-tool`
 - `plugins/cppmodel/scripts/templates/install-cppmodel.sh` / `.ps1` - templates that detect
   platform/compiler and fetch the CppModel SDK into `dependencies/`. The `cppmodel:ci-pipeline`
   and `cppmodel:update-dependencies` skills copy them into a project; `cppmodel:setup-environment`

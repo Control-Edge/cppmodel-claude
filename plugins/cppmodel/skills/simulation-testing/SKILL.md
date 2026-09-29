@@ -13,8 +13,6 @@ CPPMODEL_USERNAME=...
 CPPMODEL_PASSWORD=...
 ```
 
-(`CPPMODEL_CLIENT_ID` is optional; the plugin's scripts default it to `cppmodel-frontend`.)
-
 Check this *before* running a binary or querying results, not after something fails. If `.env` is
 missing these, tell the user and stop - do not guess, fabricate, or improvise a workaround (e.g.
 searching the local filesystem for prior results, or writing new code to reconstruct what the API
@@ -145,15 +143,14 @@ even run manually indefinitely without ever actually gating anything.
 
 The binary's stdout gives nothing to work with beyond pass/fail and a `UI: https://...` link -
 there is no local log, file, or cache holding the per-cycle signal trace. It only exists behind the
-Workspace API. Use the `cppmodel:simulations` skill's
-`${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh "<SimulationName>"` (or `GET /simulations/{id}`
-from the Workspace API directly, per `${CLAUDE_PLUGIN_ROOT}/api/workspace-api.yaml`) to pull the
+Workspace API. Use `cppmodel-tool fetch "<SimulationName>"` (the SDK's tool; see the
+`cppmodel:simulations` skill for building it) to pull the
 full execution trace: every `CppModel_getInput` signal under `inputs`, every
 `CppModel_getParameter` under `parameters`, and every `CppModel_setOutput` signal (including
 `CppModel.StepResult` and `internalStepNumber`) under `results`, each series as `{label, x, y}`
 with `x` in ms. Series only have points where the value changed, plus the end time. Don't grep the project for prior output, don't add
 extra logging/printf/file-dumping to the simulation to work around this, and don't write a new
-script to reconstruct the trace - the fetch script already returns it.
+script to reconstruct the trace - the tool already returns it.
 
 Workflow:
 

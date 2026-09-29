@@ -1,8 +1,12 @@
 # Runs one CppModel simulation repeatedly with different inputs/parameters (a sweep), used by the
-# cppmodel:parameter-sweep skill. Every API call goes through cppmodel-fetch.ps1. Same plan format,
-# checks, and output layout as cppmodel-sweep.sh - see that script's header.
+# cppmodel:parameter-sweep skill. Every API call goes through the SDK's cppmodel-tool (built from
+# <sdk>/share/cppmodel/tools, SDK 0.6.2+). Same plan format, checks, and output layout as
+# cppmodel-sweep.sh - see that script's header.
 #
-#   cppmodel-sweep.ps1 <plan.json> <out-dir> [-DryRun] [-TimeoutSeconds <s>] [-Workspace <id>]
+#   cppmodel-sweep.ps1 <plan.json> <out-dir> [-DryRun] [-TimeoutSeconds <s>] [-Workspace <id>] [-Tool <path>]
+#
+# cppmodel-tool is looked up in this order: -Tool, $env:CPPMODEL_TOOL, PATH, then
+# <repo>\build\cppmodel-tool\cppmodel-tool.exe.
 #Requires -Version 5.1
 [CmdletBinding()]
 param(
@@ -10,16 +14,22 @@ param(
     [Parameter(Mandatory, Position = 1)][string]$Out,
     [switch]$DryRun,
     [int]$TimeoutSeconds = 0,
-    [string]$Workspace
+    [string]$Workspace,
+    [string]$Tool
 )
 $ErrorActionPreference = "Stop"
 
-$Fetch = Join-Path $PSScriptRoot "cppmodel-fetch.ps1"
 $WsArgs = @(); if ($Workspace) { $WsArgs = @("--workspace", $Workspace) }
+# Returns the tool's stdout (the JSON body, including the server's {"code","message"} on errors);
+# throws on a nonzero exit with that output in the message, so callers can match NOT_FOUND.
 function Invoke-Fetch {
-    $output = & $Fetch @WsArgs @args
-    if ($LASTEXITCODE) { throw "cppmodel-fetch.ps1 $($args -join ' ') failed" }
-    return ($output | Out-String)
+    # Windows PowerShell 5.1 turns a native program's stderr into terminating errors under "Stop",
+    # even when redirected - rely on the exit code instead.
+    $ErrorActionPreference = "Continue"
+    $output = & $Tool fetch --env $EnvFile @WsArgs @args 2>$null
+    $text = ($output | Out-String)
+    if ($LASTEXITCODE) { throw "cppmodel-tool fetch $($args -join ' ') failed: $text" }
+    return $text
 }
 function Read-Json([string]$Path) { Get-Content -Raw -Encoding UTF8 $Path | ConvertFrom-Json }
 function Write-Text([string]$Text, [string]$Path) {
@@ -31,6 +41,12 @@ function Copy-Deep($Object) { ConvertTo-Json -InputObject $Object -Depth 20 | Co
 function Get-Props($Object) { if ($Object) { @($Object.PSObject.Properties) } else { @() } }
 
 $RepoRoot = (& git rev-parse --show-toplevel).Trim()
+# The same .env the simulation binary gets, rather than whichever one the tool would find first.
+$EnvFile = Join-Path $RepoRoot ".env"
+if (-not $Tool) { $Tool = $env:CPPMODEL_TOOL }
+if (-not $Tool) { $cmd = Get-Command cppmodel-tool -ErrorAction SilentlyContinue; if ($cmd) { $Tool = $cmd.Source } }
+if (-not $Tool) { $Tool = Join-Path $RepoRoot "build\cppmodel-tool\cppmodel-tool.exe" }
+if (-not (Test-Path $Tool)) { throw "cppmodel-tool not found (tried -Tool, `$env:CPPMODEL_TOOL, PATH, $Tool). Build it from <sdk>\share\cppmodel\tools (SDK 0.6.2+)." }
 $PlanData = Read-Json $Plan
 $Simulation = $PlanData.simulation
 if (-not $Simulation) { throw 'Plan has no "simulation"' }

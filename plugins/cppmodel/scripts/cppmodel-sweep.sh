@@ -1,8 +1,13 @@
 #!/bin/bash
 # Runs one CppModel simulation repeatedly with different inputs/parameters (a sweep), used by the
-# cppmodel:parameter-sweep skill. Every API call goes through cppmodel-fetch.sh.
+# cppmodel:parameter-sweep skill. Every API call goes through the SDK's cppmodel-tool (built from
+# <sdk>/share/cppmodel/tools, SDK 0.6.2+).
 #
 #   cppmodel-sweep.sh <plan.json> <out-dir> [--dry-run] [--timeout <seconds>] [--workspace <id>]
+#                     [--tool <path to cppmodel-tool>]
+#
+# cppmodel-tool is looked up in this order: --tool, $CPPMODEL_TOOL, PATH, then
+# <repo>/build/cppmodel-tool/cppmodel-tool.
 #
 # Plan (JSON):
 #   {
@@ -27,25 +32,30 @@
 # sweep is saved to pending-before.json and re-posted at the end.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FETCH="$SCRIPT_DIR/cppmodel-fetch.sh"
-
-PLAN="" OUT="" DRY_RUN=0 TIMEOUT="" WS_ARGS=()
+PLAN="" OUT="" DRY_RUN=0 TIMEOUT="" WS_ARGS=() TOOL="${CPPMODEL_TOOL:-}"
 while [ $# -gt 0 ]; do
     case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
     --timeout) TIMEOUT="$2"; shift 2 ;;
     --workspace) WS_ARGS=(--workspace "$2"); shift 2 ;;
+    --tool) TOOL="$2"; shift 2 ;;
     *) if [ -z "$PLAN" ]; then PLAN="$1"; elif [ -z "$OUT" ]; then OUT="$1"; else echo "Unexpected argument: $1" >&2; exit 1; fi; shift ;;
     esac
 done
-[ -f "$PLAN" ] && [ -n "$OUT" ] || { echo "Usage: $0 <plan.json> <out-dir> [--dry-run] [--timeout <s>] [--workspace <id>]" >&2; exit 1; }
+[ -f "$PLAN" ] && [ -n "$OUT" ] || { echo "Usage: $0 <plan.json> <out-dir> [--dry-run] [--timeout <s>] [--workspace <id>] [--tool <path>]" >&2; exit 1; }
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 mkdir -p "$OUT/runs" "$OUT/results"
 OUT="$(cd "$OUT" && pwd)"
 
-fetch() { "$FETCH" "${WS_ARGS[@]+"${WS_ARGS[@]}"}" "$@"; }
+if [ -z "$TOOL" ]; then
+    TOOL="$(command -v cppmodel-tool || true)"
+    [ -n "$TOOL" ] || TOOL="$REPO_ROOT/build/cppmodel-tool/cppmodel-tool"
+fi
+[ -x "$TOOL" ] || { echo "cppmodel-tool not found (tried --tool, \$CPPMODEL_TOOL, PATH, $TOOL). Build it from <sdk>/share/cppmodel/tools (SDK 0.6.2+)." >&2; exit 1; }
+
+# The same .env the simulation binary gets, rather than whichever one the tool would find first.
+fetch() { "$TOOL" fetch --env "$REPO_ROOT/.env" "${WS_ARGS[@]+"${WS_ARGS[@]}"}" "$@"; }
 
 plan_get() { python3 -c "import json,sys; v=json.load(open(sys.argv[1])).get(sys.argv[2], sys.argv[3]); print(v if isinstance(v, str) else 'inline')" "$PLAN" "$1" "${2:-}"; }
 SIMULATION="$(plan_get simulation)"

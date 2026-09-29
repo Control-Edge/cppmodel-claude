@@ -51,18 +51,21 @@ Document format (`SimulationInputs` in `${CLAUDE_PLUGIN_ROOT}/api/workspace-api.
 
 ## Requirements
 
-`.env` at the project root with `CPPMODEL_USERNAME` and `CPPMODEL_PASSWORD` (the client id
-defaults to `cppmodel-frontend`); see `cppmodel:simulation-testing`. If they're missing, tell the
+`.env` at the project root with `CPPMODEL_USERNAME` and `CPPMODEL_PASSWORD`; see
+`cppmodel:simulation-testing`. If they're missing, tell the
 user and stop. The simulation doesn't need to have run before for a POST to be accepted.
 
-All API access goes through the plugin's fetch script. Use `cppmodel-fetch.ps1` with the same
-arguments from a plain PowerShell prompt:
+All API access goes through the SDK's `cppmodel-tool`. See `cppmodel:simulations` ("The tool")
+for finding or building it:
 
 ```
-${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh inputs "<simulation name>"                  # pending document (404 = none)
-${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh set-inputs "<simulation name>" <file.json>   # post one
-${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh "<simulation name>"                         # latest execution record
+cppmodel-tool fetch inputs "<simulation name>"                  # pending document (404 = none)
+cppmodel-tool fetch set-inputs "<simulation name>" <file.json>  # post one
+cppmodel-tool fetch "<simulation name>"                         # latest execution record
 ```
+
+`set-inputs` refuses a file that isn't valid JSON (exit 2) before contacting the server. It doesn't
+check the document's shape, so step 3's checks still apply.
 
 ## 1. Find every input and parameter name
 
@@ -93,7 +96,7 @@ authoring anything.
 ## 2. Check nothing is already pending
 
 ```
-cppmodel-fetch.sh inputs "<simulation name>"
+cppmodel-tool fetch inputs "<simulation name>"
 ```
 
 The normal answer is 404, meaning nothing is pending. If a document comes back, someone (the web
@@ -146,7 +149,7 @@ Ask the user which.
 ## 4. Post, then run immediately
 
 ```
-cppmodel-fetch.sh set-inputs "<simulation name>" <file.json>
+cppmodel-tool fetch set-inputs "<simulation name>" <file.json>
 ```
 
 Build and run the binary straight away, as `cppmodel:simulation-testing` describes ("Build and
@@ -162,7 +165,7 @@ Say so and stop.
 Fetch the execution record:
 
 ```
-cppmodel-fetch.sh "<simulation name>"
+cppmodel-tool fetch "<simulation name>"
 ```
 
 Compare its `parameters` and `inputs` with what you posted:
@@ -199,7 +202,7 @@ To wipe a simulation's executions, stored parameters, and any pending document (
 deleting it in the UI), use:
 
 ```
-cppmodel-fetch.sh delete "<simulation name>" --yes
+cppmodel-tool fetch delete "<simulation name>" --yes
 ```
 
 The code can do the same itself with `CppModel_resetData(sim)` (C) or `ResetData()` (C++), called

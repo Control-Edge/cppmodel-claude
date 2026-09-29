@@ -23,15 +23,17 @@ just repeat the default run. If a document was already pending before the sweep 
 runner saves it and re-posts it at the end. Posts made during the sweep are all consumed, so
 nothing else is left behind.
 
-The runner ships with the plugin and uses `cppmodel-fetch.sh`/`.ps1` for every API call. Don't
-reimplement any of this by hand:
+The runner ships with the plugin and makes every API call through the SDK's `cppmodel-tool`.
+Build that first if it isn't already built, as `cppmodel:simulations` ("The tool") describes. The
+runner looks for it via `--tool`/`-Tool`, then `$CPPMODEL_TOOL`, then `PATH`, then
+`build/cppmodel-tool/`. Don't reimplement any of this by hand:
 
 ```
-${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-sweep.sh <plan.json> <out-dir> [--dry-run] [--timeout <s>] [--workspace <id>]
+${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-sweep.sh <plan.json> <out-dir> [--dry-run] [--timeout <s>] [--workspace <id>] [--tool <path>]
 ```
 
 ```powershell
-& "${CLAUDE_PLUGIN_ROOT}\scripts\cppmodel-sweep.ps1" <plan.json> <out-dir> [-DryRun] [-TimeoutSeconds <s>] [-Workspace <id>]
+& "${CLAUDE_PLUGIN_ROOT}\scripts\cppmodel-sweep.ps1" <plan.json> <out-dir> [-DryRun] [-TimeoutSeconds <s>] [-Workspace <id>] [-Tool <path>]
 ```
 
 ## 1. Preconditions
@@ -181,7 +183,7 @@ Point the user at the web UI for any run they want to inspect:
   Posted documents are one-shot, so a scenario that isn't in the repo isn't part of the test
   suite.
 - **To find out why a combination fails**, fetch its execution by id
-  (`cppmodel-fetch.sh execution "<name>" <executionId>`). Then follow
+  (`cppmodel-tool fetch execution "<name>" <executionId>`). Then follow
   `cppmodel:simulation-testing`'s "Debugging a failure" section.
 - **Re-run a saved plan after code changes** to confirm the boundary moved the right way.
 

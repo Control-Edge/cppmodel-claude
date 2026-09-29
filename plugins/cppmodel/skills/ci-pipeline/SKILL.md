@@ -50,9 +50,9 @@ Before asking anything, check the project for:
   every provider below handles this differently (see step 5), and hosted runners never have
   implicit access to a private internal git server.
 - `.env.example` or the project's docs for the exact credential variable names expected (normally
-  `CPPMODEL_USERNAME`, `CPPMODEL_PASSWORD`, `CPPMODEL_CLIENT_ID` - see
-  `cppmodel:simulation-testing`'s "Requirements" - but confirm against this project's own file
-  rather than assuming; some projects only require the first two).
+  `CPPMODEL_USERNAME` and `CPPMODEL_PASSWORD` - see `cppmodel:simulation-testing`'s
+  "Requirements" - but confirm against this project's own file rather than assuming; older
+  projects may also set `CPPMODEL_CLIENT_ID`, which is harmless).
 - Any other local-only step a human currently runs between checkout and a working build (unzipping
   vendored BSW archives, code generation, a `CMakePresets.json`) - the pipeline needs an equivalent
   step for each one it finds, not just checkout+fetch-deps+build+test.
