@@ -6,7 +6,7 @@ param(
     [string]$DepsDir,
     [string]$BaseUrl = "https://download.cppmodel.com/",
     [string]$Version = "latest",
-    [ValidateSet("UCRT64", "CLANG64", "MSVC")]
+    [ValidateSet("UCRT64", "CLANG64", "MSVC", "CLANGCL")]
     [string]$Platform
 )
 
@@ -22,10 +22,11 @@ if (-not $Platform) {
         elseif ($cmd -and $cmd.Source -match "(?i)clang64") { $found += "CLANG64" }
     }
     if (Get-Command cl -ErrorAction SilentlyContinue) { $found += "MSVC" }
+    if (Get-Command clang-cl -ErrorAction SilentlyContinue) { $found += "CLANGCL" }
     $found = @($found | Select-Object -Unique)
 
     if ($found.Count -eq 1) { $Platform = $found[0] }
-    elseif ($found.Count -eq 0) { throw "Could not detect Windows toolchain. Pass -Platform UCRT64|CLANG64|MSVC." }
+    elseif ($found.Count -eq 0) { throw "Could not detect Windows toolchain. Pass -Platform UCRT64|CLANG64|MSVC|CLANGCL." }
     else { throw "Multiple toolchains detected ($($found -join ', ')). Pass -Platform to disambiguate." }
 }
 

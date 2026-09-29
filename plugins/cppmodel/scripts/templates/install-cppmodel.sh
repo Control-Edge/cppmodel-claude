@@ -26,23 +26,25 @@ case "$OS_NAME" in
 
         if [[ -z "$COMPILER" ]]; then
             cxx="$(command -v c++ || command -v g++ || command -v clang++ || true)"
-            if [[ "$cxx" == *clang* ]]; then
-                COMPILER="clang21"
-            elif [[ -n "$cxx" ]]; then
-                ver="$("$cxx" -dumpversion 2>/dev/null | cut -d. -f1)"
-                case "$ver" in
-                    12) COMPILER="gcc12" ;;
-                    16) COMPILER="gcc16" ;;
-                    *)
-                        echo "Detected gcc major version '$ver', no published archive for it." >&2
-                        echo "Set COMPILER=gcc12|gcc16|clang21, or check https://download.cppmodel.com/ for what's currently published." >&2
-                        exit 1
-                        ;;
-                esac
-            else
-                echo "Could not detect compiler. Set COMPILER=gcc12|gcc16|clang21." >&2
+            if [[ -z "$cxx" ]]; then
+                echo "Could not detect compiler. Set COMPILER=gcc12|gcc16|clang14|clang21." >&2
                 exit 1
             fi
+            if "$cxx" --version 2>/dev/null | head -1 | grep -q clang; then
+                family="clang"
+                ver="$("$cxx" --version | head -1 | sed -E 's/.*clang version ([0-9]+).*/\1/')"
+            else
+                family="gcc"
+                ver="$("$cxx" -dumpversion 2>/dev/null | cut -d. -f1)"
+            fi
+            case "$family$ver" in
+                gcc12|gcc16|clang14|clang21) COMPILER="$family$ver" ;;
+                *)
+                    echo "Detected $family major version '$ver', no published archive for it." >&2
+                    echo "Set COMPILER=gcc12|gcc16|clang14|clang21, or check https://download.cppmodel.com/ for what's currently published." >&2
+                    exit 1
+                    ;;
+            esac
         fi
 
         PLATFORM_TAG="${OS_TAG}-${ARCH}-${COMPILER}"

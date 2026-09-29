@@ -1,6 +1,6 @@
 # CppModel Tools
 
-A Claude Code plugin for projects using the CppModel libraries. Seven skills:
+A Claude Code plugin for projects using the CppModel libraries. Eight skills:
 
 - **`cppmodel:decouple-component`** - decouple a vendor-coupled controller component (one that
   calls a vendor BSW/RTOS/HAL API directly) so it can run in isolation under CppModel.
@@ -27,6 +27,13 @@ A Claude Code plugin for projects using the CppModel libraries. Seven skills:
   prebuilt SDK for. Installs the plugin's `install-cppmodel.sh`/`.ps1` templates into the project
   if it doesn't already have an equivalent script, so CI and local dependency fetches share the
   same logic regardless of provider.
+
+- **`cppmodel:setup-environment`** - first-time machine setup: detects the OS, architecture,
+  installed compilers/toolchains, build tools, and OpenSSL/zlib, compares them with the SDK builds
+  CppModel actually publishes, and lets you pick an installed match, install a supported compiler,
+  or use the closest match. For an unsupported OS/compiler it drafts a request to
+  support@cedge.se listing what is available for your OS. Then installs what's missing plus the
+  SDK and verifies a build.
 
 ## Install
 
@@ -58,10 +65,13 @@ requires a valid CppModel account.
 - `plugins/cppmodel/skills/update-dependencies/SKILL.md` - the SDK update skill
 - `plugins/cppmodel/skills/ci-pipeline/SKILL.md` - the CI pipeline skill (GitHub Actions, GitLab
   CI, Bitbucket Pipelines, Gitea Actions)
+- `plugins/cppmodel/skills/setup-environment/SKILL.md` - the environment setup skill
+- `plugins/cppmodel/scripts/detect-environment.sh` / `.ps1` - read-only probes the setup skill runs
+  to report OS, compilers, tools, libraries, and the currently published SDK builds
 - `plugins/cppmodel/scripts/cppmodel-fetch.sh` / `.ps1` - the CLI the query skill wraps (bash and
   PowerShell versions, list / get / executions, with automatic per-workspace routing)
-- `plugins/cppmodel/scripts/templates/install-cppmodel.sh` / `.ps1` - templates the
-  `cppmodel:ci-pipeline` and `cppmodel:update-dependencies` skills copy into a project (not run
-  from the plugin itself) to detect platform/compiler and fetch the CppModel SDK into
-  `dependencies/`
+- `plugins/cppmodel/scripts/templates/install-cppmodel.sh` / `.ps1` - templates that detect
+  platform/compiler and fetch the CppModel SDK into `dependencies/`. The `cppmodel:ci-pipeline`
+  and `cppmodel:update-dependencies` skills copy them into a project; `cppmodel:setup-environment`
+  also runs them directly with an explicit compiler for first-time setup
 - `plugins/cppmodel/api/workspace-api.yaml` - the full Workspace API spec
