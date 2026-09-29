@@ -135,7 +135,10 @@ void <name>ModelCyclic(<Name>Model_t *const context, const unsigned long current
 C++ equivalent - a class over `CppModelBase::Model` (`cppmodel/Model.h`), plain public members
 instead of separate actuators/sensors/config structs (this is the shape an already-existing C++
 model in this kind of project is likely to use - check one if present and match it instead of this
-exactly):
+exactly). `RunCyclic`'s parameter type has changed between SDK releases: copy it from the
+vendored `dependencies/include/cppmodel/Model.h`. SDK 0.6.0 uses `unsigned long long
+simulationTime_ms`, as below; older releases used `double`. With `override`, a mismatch is a
+compile error rather than a silently never-called method:
 
 ```cpp
 #include <cppmodel/Model.h>
@@ -160,7 +163,7 @@ public:
 
     inline <Name>Model() {}
 
-    inline void RunCyclic(double stepTime) override
+    inline void RunCyclic(unsigned long long simulationTime_ms) override
     {
         const sint32 previousPosition = position;
         if (<direction_a>)
@@ -235,7 +238,7 @@ public:
 
     inline <Name>Model() {}
 
-    inline void RunCyclic(double stepTime) override
+    inline void RunCyclic(unsigned long long simulationTime_ms) override
     {
         precise_position += (double)<speed_command> * sensor_ratio * (negativeDirection ? -1 : 1);
         position = (sint32)precise_position;

@@ -16,7 +16,8 @@ set +a
 
 : "${CPPMODEL_USERNAME:?CPPMODEL_USERNAME not set in .env}"
 : "${CPPMODEL_PASSWORD:?CPPMODEL_PASSWORD not set in .env}"
-: "${CPPMODEL_CLIENT_ID:?CPPMODEL_CLIENT_ID not set in .env}"
+# Public client every account uses (see api/workspace-api.yaml); .env may override it.
+CPPMODEL_CLIENT_ID="${CPPMODEL_CLIENT_ID:-cppmodel-frontend}"
 
 WORKSPACE_OVERRIDE=""
 ARGS=()
@@ -39,9 +40,9 @@ TOKEN_ENDPOINT=$(curl -sf "$DISCOVERY_URL" | python3 -c "import json,sys; print(
 
 ACCESS_TOKEN=$(curl -sf -X POST "$TOKEN_ENDPOINT" \
     -d "grant_type=password" \
-    -d "client_id=$CPPMODEL_CLIENT_ID" \
-    -d "username=$CPPMODEL_USERNAME" \
-    -d "password=$CPPMODEL_PASSWORD" \
+    --data-urlencode "client_id=$CPPMODEL_CLIENT_ID" \
+    --data-urlencode "username=$CPPMODEL_USERNAME" \
+    --data-urlencode "password=$CPPMODEL_PASSWORD" \
     | python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
 
 WORKSPACE=$(python3 -c "
@@ -71,8 +72,10 @@ else:
 
 CPPMODEL_API_BASE="https://$WORKSPACE.cppmodel.com/api"
 
+# --fail-with-body: on an HTTP error, still print the server's {"code","message"} body (e.g.
+# "No input data found" for a simulation that has none posted) and exit nonzero.
 fetch() {
-    curl -sf -H "Authorization: Bearer $ACCESS_TOKEN" "$CPPMODEL_API_BASE$1"
+    curl -s --fail-with-body -H "Authorization: Bearer $ACCESS_TOKEN" "$CPPMODEL_API_BASE$1"
 }
 
 url_encode() {
@@ -85,6 +88,20 @@ case "${1:-}" in
     ;;
 executions)
     fetch "/simulations/$(url_encode "$2")/executions" | python3 -m json.tool
+    ;;
+execution)
+    fetch "/simulations/$(url_encode "$2")/executions/$(url_encode "$3")" | python3 -m json.tool
+    ;;
+inputs)
+    fetch "/simulations/$(url_encode "$2")/inputs" | python3 -m json.tool
+    ;;
+set-inputs)
+    # Replaces the simulation's whole input/parameter document with the JSON file's contents.
+    [ -f "${3:-}" ] || { echo "Usage: set-inputs <simulation name> <inputs.json>" >&2; exit 1; }
+    curl -s --fail-with-body -X POST -H "Authorization: Bearer $ACCESS_TOKEN" \
+        -H "Content-Type: application/json" --data-binary "@$3" \
+        "$CPPMODEL_API_BASE/simulations/$(url_encode "$2")/inputs"
+    echo "Inputs saved for '$2'" >&2
     ;;
 *)
     fetch "/simulations/$(url_encode "$1")" | python3 -m json.tool

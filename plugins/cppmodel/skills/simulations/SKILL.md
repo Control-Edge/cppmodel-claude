@@ -10,8 +10,9 @@ A CppModel account (free or licensed - both work the same way here), and `.env` 
 ```
 CPPMODEL_USERNAME=...
 CPPMODEL_PASSWORD=...
-CPPMODEL_CLIENT_ID=cppmodel-frontend
 ```
+
+(`CPPMODEL_CLIENT_ID` is optional; the plugin's scripts default it to `cppmodel-frontend`.)
 
 If `.env` is missing these, tell the user and stop - do not guess or fabricate credentials.
 
@@ -36,6 +37,9 @@ running:
 ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh                              # list simulations
 ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh "<simulation name>"          # latest results for one
 ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh executions "<simulation name>"  # its execution history
+${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh execution "<simulation name>" <execution id>  # one past execution's trace
+${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh inputs "<simulation name>"    # inputs/parameters its next run will use
+${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh set-inputs "<simulation name>" <file.json>  # replace them (see below)
 ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh --workspace <id> ...         # override auto-detected workspace
 ```
 
@@ -43,8 +47,16 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh --workspace <id> ...         # o
 & "${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.ps1"
 & "${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.ps1" "<simulation name>"
 & "${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.ps1" executions "<simulation name>"
+& "${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.ps1" execution "<simulation name>" <execution id>
+& "${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.ps1" inputs "<simulation name>"
+& "${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.ps1" set-inputs "<simulation name>" <file.json>
 & "${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.ps1" --workspace <id> ...
 ```
+
+`inputs` returns the document waiting for the simulation's next execution; a 404 "No input data
+found" means nothing is pending, which is normal. `set-inputs` posts one, and the next execution
+consumes it. Don't call it directly from here. Use `cppmodel:simulation-inputs` for one scenario
+or `cppmodel:parameter-sweep` for many; both validate the document and verify it was applied.
 
 The simulation name is exactly the string passed to `CMODEL_SIMULATE(...)` in the source - it may contain spaces, quote it.
 
@@ -52,8 +64,19 @@ Each command prints pretty-printed JSON. The full API contract (endpoints, respo
 
 ## Interpreting input/output signals in the results
 
-Whether a signal in the returned time series is a `CppModel_getInput*` (input) or
-`CppModel_setOutput*` (output) tells you it's crossing into or out of whichever component that
+A result (latest, or one execution by id) is one JSON document:
+
+- `inputs`: a list of `{label, x, y}`, with every `CppModel_getInput*` the simulation read and
+  the values it got (posted, or the fallback);
+- `parameters`: every `CppModel_getParameter*` it read, name → value, plus the reserved
+  `CppModel.SimulationTime`/`StepSize`, in seconds;
+- `results`: a list of `{label, x, y}` output series, including `CppModel.StepResult`.
+
+`x` is simulation time in ms. Series are change-compressed: `x` holds only the times the value
+changed, plus the end time, so the value between two points is the earlier point's `y`.
+
+Whether a signal is in `inputs` (a `CppModel_getInput*`) or in `results` (a
+`CppModel_setOutput*`) tells you it's crossing into or out of whichever component that
 simulation wraps - not necessarily "actuator" or "sensor" specifically. See
 `cppmodel:simulation-testing`'s "which side is being simulated" note: for a plant simulation,
 inputs are actuator commands and outputs are sensor readings; for a controller simulation, inputs

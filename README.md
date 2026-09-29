@@ -1,6 +1,6 @@
 # CppModel Tools
 
-A Claude Code plugin for projects using the CppModel libraries. Eight skills:
+A Claude Code plugin for projects using the CppModel libraries. Ten skills:
 
 - **`cppmodel:decouple-component`** - decouple a vendor-coupled controller component (one that
   calls a vendor BSW/RTOS/HAL API directly) so it can run in isolation under CppModel.
@@ -11,7 +11,15 @@ A Claude Code plugin for projects using the CppModel libraries. Eight skills:
   `cppmodel:language`), including using the API trace to pinpoint why a test failed instead of
   guessing from stdout.
 - **`cppmodel:simulations`** - query the Workspace API: list your simulations, fetch a
-  simulation's latest results, or list its execution history.
+  simulation's latest results, list its execution history, or fetch one past execution.
+- **`cppmodel:simulation-inputs`** - run a simulation with specific inputs (time series) and
+  parameters (constants) posted through the Workspace API, without editing or rebuilding it. Finds
+  the exact names the simulation reads, validates and posts the document right before the run (the
+  next execution consumes it), and confirms from the execution record that the values were really
+  used.
+- **`cppmodel:parameter-sweep`** - runs a simulation over a grid or list of parameter values and
+  input profiles, verifying after every run that the posted values were applied, then reports the
+  pass/fail map, where the boundary lies, and the metrics you care about.
 - **`cppmodel:language`** - decides C vs C++ for a new plant model or simulation file: checks a
   stored per-project preference (`.claude/cppmodel.local.json`) first, otherwise detects the
   project's existing convention or asks, and can remember the answer so it isn't asked again. Used
@@ -27,7 +35,6 @@ A Claude Code plugin for projects using the CppModel libraries. Eight skills:
   prebuilt SDK for. Installs the plugin's `install-cppmodel.sh`/`.ps1` templates into the project
   if it doesn't already have an equivalent script, so CI and local dependency fetches share the
   same logic regardless of provider.
-
 - **`cppmodel:setup-environment`** - first-time machine setup: detects the OS, architecture,
   installed compilers/toolchains, build tools, and OpenSSL/zlib, compares them with the SDK builds
   CppModel actually publishes, and lets you pick an installed match, install a supported compiler,
@@ -49,8 +56,9 @@ A CppModel account (free or licensed), and a `.env` file at your project root:
 ```
 CPPMODEL_USERNAME=...
 CPPMODEL_PASSWORD=...
-CPPMODEL_CLIENT_ID=cppmodel-frontend
 ```
+
+`CPPMODEL_CLIENT_ID` is optional; the plugin defaults it to `cppmodel-frontend`.
 
 Installing the plugin is free and requires nothing further; using it against real data still
 requires a CppModel account. Free accounts use the shared `free-workspace.cppmodel.com` workspace
@@ -70,8 +78,13 @@ one from your login automatically, and every skill works the same with either.
 - `plugins/cppmodel/skills/setup-environment/SKILL.md` - the environment setup skill
 - `plugins/cppmodel/scripts/detect-environment.sh` / `.ps1` - read-only probes the setup skill runs
   to report OS, compilers, tools, libraries, and the currently published SDK builds
+- `plugins/cppmodel/skills/simulation-inputs/SKILL.md` - the inputs/parameters skill
+- `plugins/cppmodel/skills/parameter-sweep/SKILL.md` - the sweep skill
 - `plugins/cppmodel/scripts/cppmodel-fetch.sh` / `.ps1` - the CLI the query skill wraps (bash and
-  PowerShell versions, list / get / executions, with automatic per-workspace routing)
+  PowerShell versions, list / get / executions / execution / inputs / set-inputs, with automatic
+  per-workspace routing)
+- `plugins/cppmodel/scripts/cppmodel-sweep.sh` / `.ps1` - the sweep runner: posts each run's
+  inputs, runs the binary, fetches that run's execution, and checks the posted values were used
 - `plugins/cppmodel/scripts/templates/install-cppmodel.sh` / `.ps1` - templates that detect
   platform/compiler and fetch the CppModel SDK into `dependencies/`. The `cppmodel:ci-pipeline`
   and `cppmodel:update-dependencies` skills copy them into a project; `cppmodel:setup-environment`

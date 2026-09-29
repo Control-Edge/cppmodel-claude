@@ -232,7 +232,7 @@ step-3 near match. If a near match fails to link, report the actual error, and o
 install of the exact compiler or the support email. Don't try linker workarounds.
 
 Running the simulations (`ctest`) also needs credentials. Check for a `.env` at the project root
-with `CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD`/`CPPMODEL_CLIENT_ID` (see
+with `CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD` (see
 `cppmodel:simulation-testing`'s "Requirements"). If it's missing, stop after the build and tell
 the user what to add. Don't run `ctest` without it; the resulting failures would look like
 regressions when they aren't.

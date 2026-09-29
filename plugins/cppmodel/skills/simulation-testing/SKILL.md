@@ -11,8 +11,9 @@ at the project root with:
 ```
 CPPMODEL_USERNAME=...
 CPPMODEL_PASSWORD=...
-CPPMODEL_CLIENT_ID=cppmodel-frontend
 ```
+
+(`CPPMODEL_CLIENT_ID` is optional; the plugin's scripts default it to `cppmodel-frontend`.)
 
 Check this *before* running a binary or querying results, not after something fails. If `.env` is
 missing these, tell the user and stop - do not guess, fabricate, or improvise a workaround (e.g.
@@ -67,11 +68,19 @@ follow its exact shape (populate its step container, override its per-cycle meth
 requirement-tracing helper if the scenario covers a named requirement) - don't build a second,
 competing mechanism alongside it.
 
-If no such wrapper exists, subclass `CppModelBase::Simulation` directly: override
-`RunCyclic(double time)` as the per-cycle callback, use `inputs["name"]` / `outputs["name"]`
+If no such wrapper exists, subclass `CppModelBase::Simulation` directly: override `RunCyclic` as
+the per-cycle callback, with the exact parameter type from the vendored `cppmodel/Model.h` (SDK
+0.6.0: `unsigned long long simulationTime_ms`; older releases: `double`), use `inputs["name"]` / `outputs["name"]`
 (`SimulationInputs`/`SimulationOutputs`, indexable like a map) to cross the boundary, and always
 set `outputs["CppModel.StepResult"]`. `main()` constructs the simulation object and calls
 `.Simulate()`.
+
+Any C++ file that includes the SDK's headers (`Simulation.h` pulls in the header-only `httplib.h`)
+must be compiled with `CPPHTTPLIB_OPENSSL_SUPPORT` defined, e.g.
+`target_compile_definitions(<target> PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)`. The SDK library is
+built with it, and without it the two disagree on `httplib::Client`'s layout. The result links
+cleanly, then segfaults inside `httplib` on the first API call. C simulations that only include
+`CModel.h` are unaffected.
 
 ### C
 
@@ -137,8 +146,10 @@ there is no local log, file, or cache holding the per-cycle signal trace. It onl
 Workspace API. Use the `cppmodel:simulations` skill's
 `${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh "<SimulationName>"` (or `GET /simulations/{id}`
 from the Workspace API directly, per `${CLAUDE_PLUGIN_ROOT}/api/workspace-api.yaml`) to pull the
-full execution trace: every `CppModel_setOutput`/`getInput` signal as a time series, plus
-`CppModel.StepResult` and `internalStepNumber`. Don't grep the project for prior output, don't add
+full execution trace: every `CppModel_getInput` signal under `inputs`, every
+`CppModel_getParameter` under `parameters`, and every `CppModel_setOutput` signal (including
+`CppModel.StepResult` and `internalStepNumber`) under `results`, each series as `{label, x, y}`
+with `x` in ms. Series only have points where the value changed, plus the end time. Don't grep the project for prior output, don't add
 extra logging/printf/file-dumping to the simulation to work around this, and don't write a new
 script to reconstruct the trace - the fetch script already returns it.
 
@@ -153,6 +164,11 @@ Workflow:
    wrong, or the code under test has a real bug.
 4. Fix, rebuild, rerun, re-fetch, and confirm the trace is clean end to end (`StepResult` never
    dips to 0 anywhere) - not just that the process exit code was 0.
+
+If the trace's `inputs`/`parameters` show values other than the source's fallbacks, this run
+consumed a document posted through the API or the web UI. Posted documents are one-shot: they
+affect only the next execution, whichever one that is, such as a `ctest` run or a CI job that
+happened to start first. See `cppmodel:simulation-inputs`.
 
 One recurring, easy-to-miss failure mode: a state field and an output that its new state is
 supposed to set can be one cycle out of sync - the state has already transitioned, but the case

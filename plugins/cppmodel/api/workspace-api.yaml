@@ -93,29 +93,22 @@ paths:
         - Simulations
       operationId: simulations_simulation_get
       summary: Get latest simulation results
-      description: Get the latest execution output results for this simulation.
+      description: >
+        Get the latest execution of this simulation - the inputs and
+        parameters it read plus the outputs it produced. Same shape as
+        GET /simulations/{simulationId}/executions/{executionId}.
       parameters:
         - $ref: "#/components/parameters/SimulationId"
       responses:
         "200":
-          description: Latest simulation results
+          description: Latest execution
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TimeSeriesMap"
-              example:
-                {
-                  "Living room temperature":
-                    {
-                      "x": [0, 3600, 7200, 10800, 14400, 18000],
-                      "y": [20, 21, 21, 22, 21, 19],
-                    },
-                  "Window closed":
-                    {
-                      "x": [0, 3600, 7200, 10800, 14400, 18000],
-                      "y": [1, 1, 1, 1, 0, 0],
-                    },
-                }
+                $ref: "#/components/schemas/SimulationExecution"
+              examples:
+                default:
+                  $ref: "#/components/examples/SimulationExecutionExample"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "403":
@@ -134,10 +127,13 @@ paths:
       tags:
         - Simulations
       operationId: simulations_simulation_inputs_get
-      summary: Get pre-execution input parameters
+      summary: Get pending inputs and parameters
       description: >
-        Get the latest input / parameter data for this simulation. These are
-        typically submitted from the front end before an execution is triggered.
+        Get the input / parameter document waiting to be consumed by the next
+        execution of this simulation - whatever was last submitted via POST
+        (from the front end or this API) and not yet consumed. Returns 404
+        when nothing is pending, which is the normal state after an
+        execution.
       parameters:
         - $ref: "#/components/parameters/SimulationId"
       responses:
@@ -146,20 +142,60 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TimeSeriesMap"
+                $ref: "#/components/schemas/SimulationInputs"
+              examples:
+                default:
+                  $ref: "#/components/examples/SimulationInputsExample"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: No input data pending for this simulation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
               example:
-                {
-                  "Living room temperature":
-                    {
-                      "x": [0, 3600, 7200, 10800, 14400, 18000],
-                      "y": [20, 21, 21, 22, 21, 19],
-                    },
-                  "Window closed":
-                    {
-                      "x": [0, 3600, 7200, 10800, 14400, 18000],
-                      "y": [1, 1, 1, 1, 0, 0],
-                    },
-                }
+                { "code": "NOT_FOUND", "message": "No input data found for simulation 'Velocity profile'." }
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+    post:
+      tags:
+        - Simulations
+      operationId: simulations_simulation_inputs_post
+      summary: Submit pre-execution inputs and parameters
+      description: >
+        Set the input / parameter document for the next execution of this
+        simulation, replacing any document still pending - send every input
+        and parameter that execution should see, not just the changed ones.
+        The document is consumed by the next execution (one-shot): when the
+        simulation binary starts it fetches the pending document, and
+        afterwards GET returns 404 until something is posted again. Post
+        right before each run. CppModel_getInput* / inputs["..."] read the
+        posted input series and CppModel_getParameter* / parameters["..."] the
+        posted parameters; a name that isn't posted returns the call's
+        fallback value. The execution records the values actually read (see
+        SimulationExecution), which is how to confirm a posted document was
+        applied. The simulation does not need to have run before. The server
+        currently stores the body as given without validating it - clients
+        should validate against SimulationInputs before posting.
+      parameters:
+        - $ref: "#/components/parameters/SimulationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulationInputs"
+            examples:
+              default:
+                $ref: "#/components/examples/SimulationInputsExample"
+      responses:
+        "204":
+          description: Input data saved
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "403":
@@ -232,7 +268,10 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TimeSeriesMap"
+                $ref: "#/components/schemas/SimulationExecution"
+              examples:
+                default:
+                  $ref: "#/components/examples/SimulationExecutionExample"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "403":
@@ -330,32 +369,89 @@ components:
               items:
                 $ref: "#/components/schemas/SimulationSummary"
 
-    TimeSeries:
+    InputSeries:
       type: object
       description: >
-        A pair of equal-length numeric arrays representing the x (time) and y
-        (value) axes.
+        One input signal. Between points the value is held (zero-order hold):
+        at simulation time t the input reads the y of the latest x <= t. A
+        sharp step therefore needs only one point at the step time; pairs like
+        x=[99, 100] with y=[20, 0] are equivalent and just make the step
+        explicit when plotted.
       required:
+        - label
         - x
         - y
       properties:
+        label:
+          type: string
+          description: >
+            Signal name, exactly as passed to CppModel_getInput*(...) /
+            inputs["..."] (or, in execution results, CppModel_setOutput*(...) /
+            outputs["..."]) - including any unit suffix like " [mm/s]".
         x:
           type: array
           minItems: 1
+          description: Simulation time in milliseconds, ascending.
           items:
             type: number
         y:
           type: array
           minItems: 1
+          description: Values, same length as x.
           items:
             type: number
 
-    TimeSeriesMap:
+    SimulationInputs:
       type: object
       description: >
-        A map of signal names to their time-series data.
-      additionalProperties:
-        $ref: "#/components/schemas/TimeSeries"
+        Pre-execution data for one simulation: time-varying inputs plus
+        constant parameters.
+      required:
+        - inputs
+        - parameters
+      properties:
+        executionTime:
+          type: string
+          description: >
+            When this input set was prepared, formatted "DD-MM-YYYY HH:MM:SS".
+            Informational.
+        inputs:
+          type: array
+          items:
+            $ref: "#/components/schemas/InputSeries"
+        parameters:
+          type: object
+          description: >
+            Parameter name -> numeric value, names exactly as passed to
+            CppModel_getParameter*(...) (C) or parameters["..."] (C++). Keys
+            prefixed "CppModel." are reserved and describe the simulation's
+            own timing, in seconds (unlike input x values, which are in
+            milliseconds): CppModel.SimulationTime (total time) and
+            CppModel.SimulationStepSize (step size).
+          additionalProperties:
+            type: number
+
+    SimulationExecution:
+      description: >
+        One execution: the inputs and parameters the simulation actually read
+        (a name it read but that wasn't posted appears with its fallback
+        value; a posted name it never read doesn't appear at all) plus every
+        output it produced. Series are change-compressed: x holds only the
+        times at which the value changed, plus the final time, so read them
+        with the same hold-last-value rule as inputs.
+      allOf:
+        - $ref: "#/components/schemas/SimulationInputs"
+        - type: object
+          required:
+            - results
+          properties:
+            results:
+              type: array
+              description: >
+                Outputs, one per CppModel_setOutput* / outputs["..."] name,
+                including CppModel.StepResult (1 = cycle passed, 0 = failed).
+              items:
+                $ref: "#/components/schemas/InputSeries"
 
     ExecutionSummary:
       type: object
@@ -412,6 +508,14 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
           example:
             { "code": "UNAUTHORIZED", "message": "Authentication token is missing or invalid." }
+    BadRequest:
+      description: Request body is malformed or fails validation
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            { "code": "BAD_REQUEST", "message": "Request body is invalid." }
     Forbidden:
       description: Authenticated but insufficient permissions
       content:
@@ -433,6 +537,60 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
           example:
             { "code": "RATE_LIMIT", "message": "Too many requests. Please retry after 60 seconds." }
+
+  examples:
+    SimulationInputsExample:
+      summary: Velocity profile with acceleration/braking windows
+      value:
+        {
+          "executionTime": "22-09-2026 05:33:47",
+          "inputs":
+            [
+              {
+                "label": "Acceleration Window Active",
+                "x": [0, 99, 100, 299, 300, 399, 400, 1200],
+                "y": [20.0, 20.0, 0.0, 0.0, 20.0, 20.0, 0.0, 0.0],
+              },
+              {
+                "label": "Braking Window Active",
+                "x": [0, 599, 600, 699, 700, 899, 900, 999, 1000, 1200],
+                "y": [0.0, 0.0, -20.0, -20.0, 0.0, 0.0, -20.0, -20.0, 0.0, 0.0],
+              },
+              {
+                "label": "Desired Velocity [mm/s]",
+                "x": [0, 299, 300, 599, 600, 899, 900, 1200],
+                "y": [50.0, 50.0, 150.0, 150.0, 30.0, 30.0, 0.0, 0.0],
+              },
+            ],
+          "parameters":
+            {
+              "Acceleration Window [ms]": 100,
+              "Braking Window [ms]": 100,
+              "CppModel.SimulationStepSize": 0.001,
+              "CppModel.SimulationTime": 1.2,
+              "Max Acceleration [m/s^2]": 4.0,
+            },
+        }
+
+    SimulationExecutionExample:
+      summary: A 1 s run with 100 ms steps where no inputs were posted
+      value:
+        {
+          "executionTime": "29-09-2026 14:15:42",
+          "inputs": [{ "label": "Test Input", "x": [0, 1000], "y": [-1.0, -1.0] }],
+          "parameters":
+            {
+              "CppModel.SimulationStepSize": 0.1,
+              "CppModel.SimulationTime": 1.0,
+              "Gain": 1.0,
+              "Limit": 100.0,
+            },
+          "results":
+            [
+              { "label": "CppModel.StepResult", "x": [0, 1000], "y": [1.0, 1.0] },
+              { "label": "Out", "x": [0, 1000], "y": [-1.0, -1.0] },
+            ],
+        }
 
   parameters:
     SimulationId:
