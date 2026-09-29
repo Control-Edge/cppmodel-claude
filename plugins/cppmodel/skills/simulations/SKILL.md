@@ -18,10 +18,13 @@ If `.env` is missing these, tell the user and stop - do not guess or fabricate c
 
 All Workspace API access goes through `cppmodel-tool`. It ships as source with the CppModel SDK
 from 0.6.2 on, in `<sdk>/share/cppmodel/tools`, and builds with CMake into one program with the
-same commands on Linux, macOS, and Windows. Find or build it once per project, in this order:
+same commands on Linux, macOS, and Windows. `fetch` (used here) exists from 0.6.2; `sweep` (used by
+`cppmodel:parameter-sweep`) from 0.6.3, and `cppmodel-tool --help` lists what a build has. Find or
+build it once per project, in this order:
 
-1. **Already built**: `build/cppmodel-tool/cppmodel-tool` (`.exe` on Windows), or `cppmodel-tool`
-   on `PATH`. Use it.
+1. **Already built**: `build/cppmodel-tool/cppmodel-tool` (`.exe` on Windows; under
+   `build/cppmodel-tool/Release/` with a multi-config generator such as Visual Studio), or
+   `cppmodel-tool` on `PATH`. Use it.
 2. **The project's SDK has the source**: `dependencies/share/cppmodel/tools` exists. Build it with
    the same toolchain as the project (on Windows with MSYS2, from that environment's shell):
 

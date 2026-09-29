@@ -1,6 +1,6 @@
 ---
 name: cppmodel:parameter-sweep
-description: Run a CppModel simulation many times over a range of parameter values and/or alternative input profiles (a parameter sweep, sensitivity study, or scenario matrix), without editing or rebuilding the simulation - each run's inputs/parameters are posted to the Workspace API right before it executes, and verified afterwards from the execution record. Designs the sweep with the user, runs it with the plugin's sweep runner, and reports which combinations pass or fail, where the pass/fail boundary lies, and the metrics the user cares about. Use when asked to sweep, vary, or tune a parameter, test robustness across input scenarios, find the limit at which a simulation starts failing, or compare several input profiles.
+description: Run a CppModel simulation many times over a range of parameter values and/or alternative input profiles (a parameter sweep, sensitivity study, or scenario matrix), without editing or rebuilding the simulation - each run's inputs/parameters are posted to the Workspace API right before it executes, and verified afterwards from the execution record. Designs the sweep with the user, runs it with the SDK's `cppmodel-tool sweep`, and reports which combinations pass or fail, where the pass/fail boundary lies, and the metrics the user cares about. Use when asked to sweep, vary, or tune a parameter, test robustness across input scenarios, find the limit at which a simulation starts failing, or compare several input profiles.
 ---
 
 ## How a sweep works
@@ -11,7 +11,7 @@ for authoring inputs) first; they apply to every run here. In short:
 - A posted input document is **consumed by the next execution**.
 - Every execution **records the inputs and parameters it actually read**.
 
-So a sweep is sequential. For each combination, the runner:
+So a sweep is sequential. For each combination, `cppmodel-tool sweep`:
 
 1. posts that combination's document;
 2. runs the binary;
@@ -20,31 +20,31 @@ So a sweep is sequential. For each combination, the runner:
 
 If a run didn't use what was posted, the sweep stops immediately, because every further run would
 just repeat the default run. If a document was already pending before the sweep started, the
-runner saves it and re-posts it at the end. Posts made during the sweep are all consumed, so
-nothing else is left behind.
+tool saves it and re-posts it at the end, including after an error or Ctrl-C. Posts made during
+the sweep are all consumed, so nothing else is left behind.
 
-The runner ships with the plugin and makes every API call through the SDK's `cppmodel-tool`.
-Build that first if it isn't already built, as `cppmodel:simulations` ("The tool") describes. The
-runner looks for it via `--tool`/`-Tool`, then `$CPPMODEL_TOOL`, then `PATH`, then
-`build/cppmodel-tool/`. Don't reimplement any of this by hand:
+The sweep is a command of the SDK's `cppmodel-tool`, the same program `cppmodel:simulations` uses
+("The tool" there covers finding and building it). `sweep` exists from SDK 0.6.3 on:
+`cppmodel-tool --help` lists it. If the available build doesn't, rebuild the tool from a 0.6.3+
+SDK, following step 3 of "The tool" if the project's own SDK is older. Don't reimplement any of
+this by hand:
 
 ```
-${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-sweep.sh <plan.json> <out-dir> [--dry-run] [--timeout <s>] [--workspace <id>] [--tool <path>]
+cppmodel-tool sweep <plan.json> <out-dir> [--dry-run] [--timeout <seconds>] [--workspace <id>] [--env <file>]
 ```
 
-```powershell
-& "${CLAUDE_PLUGIN_ROOT}\scripts\cppmodel-sweep.ps1" <plan.json> <out-dir> [-DryRun] [-TimeoutSeconds <s>] [-Workspace <id>] [-Tool <path>]
-```
+Run it from the project root, where `.env` is. The tool uses the nearest `.env`, and treats that
+file's folder as the project root.
 
 ## 1. Preconditions
 
 - `.env` has `CPPMODEL_USERNAME` and `CPPMODEL_PASSWORD` (see `cppmodel:simulation-testing`'s
   "Requirements"). If they're missing, stop and say so.
 - The simulation binary is **built and up to date**. Build it as `cppmodel:simulation-testing`
-  describes; the runner doesn't build.
+  describes; the sweep doesn't build it.
 - **Nothing else runs this simulation during the sweep**: no `ctest`, no CI job on the same
   account, no second sweep, no one pressing run in the web UI. Any of them would consume a posted
-  document meant for a sweep run. The runner then catches the mismatch and stops, but the sweep is
+  document meant for a sweep run. The sweep then catches the mismatch and stops, but it's
   wasted. Say this to the user before starting.
 
 ## 2. Find the names
@@ -52,7 +52,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-sweep.sh <plan.json> <out-dir> [--dry-run
 Do `cppmodel:simulation-inputs` step 1, which uses the latest execution record plus the source, to
 list every input and parameter the simulation reads, with exact names, types, and current values.
 A misspelled name silently uses its fallback, and the server records it like any other. Before
-posting anything, the runner warns about every varied name the latest execution didn't read.
+posting anything, the sweep warns about every varied name the latest execution didn't record.
 Treat that warning as a probable typo until the source proves otherwise. Posted documents are only
 applied from SDK 0.6.1 on; check the vendored version as `cppmodel:simulation-inputs` describes.
 
@@ -112,9 +112,10 @@ Or, for an explicit list, replace `parameters`/`inputs` with:
   - `"current"` is the document pending now, or otherwise the latest execution's recorded values;
   - an inline document can be given instead.
 - A varied input replaces the whole series with that label, not individual points.
-- The runner validates every series (lengths, ordering) before posting anything, because the
+- The sweep validates every series (lengths, ordering) before posting anything, because the
   server doesn't.
-- `binary` is relative to the repo root. On Windows, include the `.exe`.
+- `binary` is relative to the project root, which is the folder of the `.env` in use. The binary
+  also runs from that folder. On Windows, include the `.exe`.
 
 Save the plan where it fits its lifetime:
 
@@ -128,7 +129,7 @@ The output directory holds downloaded API data. Keep it out of git: use scratch,
 ## 5. Dry run, then run
 
 ```
-cppmodel-sweep.sh plan.json <out> --dry-run
+cppmodel-tool sweep plan.json <out> --dry-run
 ```
 
 This writes every run's document to `<out>/runs/NNN.json` and lists the runs, without posting or
@@ -136,10 +137,14 @@ executing anything. Show the user the list, and spot-check one run file against 
 for real with a `--timeout` a few times the binary's normal runtime:
 
 ```
-cppmodel-sweep.sh plan.json <out> --timeout 120
+cppmodel-tool sweep plan.json <out> --timeout 120
 ```
 
-The runner stops, and re-posts any document that was pending before the sweep, in these cases:
+A run that times out is recorded with exit code `124`. The sweep exits `0` when every run was
+verified, whether each passed or failed. It exits `1` when it stopped early, `2` for a usage
+error, and `130` after Ctrl-C.
+
+It stops early, and re-posts any document that was pending before the sweep, in these cases:
 
 - **The simulation didn't use the posted values.** The recorded values differ from the posted
   ones, and the message lists posted vs read values per name. Report that verbatim to the user.
@@ -155,8 +160,8 @@ Report the reason from the output. Don't re-run blindly.
 ## 6. Analyse the results
 
 `<out>/summary.json` has one row per verified run: its values, `exitCode`, `passed`,
-`executionId`, `applied`, `results` (the
-execution record from the API) and `log`.
+`executionId`, `applied`, `results` (the execution record from the API) and `log`. A failing
+run's `exitCode` is platform-dependent (255 on Linux/macOS, -1 on Windows), so go by `passed`.
 
 - **Pass/fail map first.** Show a table with one row per run, or a 2-D grid when two things were
   varied. Then state the boundary in words, e.g. "passes up to 4.0 m/s², fails from 5.0 m/s²

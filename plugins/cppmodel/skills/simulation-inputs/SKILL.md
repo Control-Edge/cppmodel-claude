@@ -183,7 +183,7 @@ Compare its `parameters` and `inputs` with what you posted:
 Once the values are confirmed, report:
 
 - pass/fail: whether `CppModel.StepResult` in `results` ever dropped to 0. The exit code is 0
-  for a pass and nonzero for a fail; 0.6.1 exits with 255.
+  for a pass and nonzero for a fail (255 on Linux/macOS, -1 on Windows).
 - what the scenario showed in the outputs the user cares about
 
 If the run failed and the reason isn't obvious, continue with `cppmodel:simulation-testing`'s

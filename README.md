@@ -19,7 +19,8 @@ A Claude Code plugin for projects using the CppModel libraries. Ten skills:
   next execution consumes it), and confirms from the execution record that the values were really
   used.
 - **`cppmodel:parameter-sweep`** - runs a simulation over a grid or list of parameter values and
-  input profiles, verifying after every run that the posted values were applied, then reports the
+  input profiles with `cppmodel-tool sweep` (SDK 0.6.3+), verifying after every run that the
+  posted values were applied, then reports the
   pass/fail map, where the boundary lies, and the metrics you care about.
 - **`cppmodel:language`** - decides C vs C++ for a new plant model or simulation file: checks a
   stored per-project preference (`.claude/cppmodel.local.json`) first, otherwise detects the
@@ -79,9 +80,6 @@ one from your login automatically, and every skill works the same with either.
   to report OS, compilers, tools, libraries, and the currently published SDK builds
 - `plugins/cppmodel/skills/simulation-inputs/SKILL.md` - the inputs/parameters skill
 - `plugins/cppmodel/skills/parameter-sweep/SKILL.md` - the sweep skill
-- `plugins/cppmodel/scripts/cppmodel-sweep.sh` / `.ps1` - the sweep runner: posts each run's
-  inputs, runs the binary, fetches that run's execution, and checks the posted values were used.
-  Talks to the API through the SDK's `cppmodel-tool`
 - `plugins/cppmodel/scripts/templates/install-cppmodel.sh` / `.ps1` - templates that detect
   platform/compiler and fetch the CppModel SDK into `dependencies/`. The `cppmodel:ci-pipeline`
   and `cppmodel:update-dependencies` skills copy them into a project; `cppmodel:setup-environment`
