@@ -136,7 +136,7 @@ C++ equivalent - a class over `CppModelBase::Model` (`cppmodel/Model.h`), plain 
 instead of separate actuators/sensors/config structs (this is the shape an already-existing C++
 model in this kind of project is likely to use - check one if present and match it instead of this
 exactly). `RunCyclic`'s parameter type has changed between SDK releases: copy it from the
-vendored `dependencies/include/cppmodel/Model.h`. SDK 0.6.0 uses `unsigned long long
+vendored `dependencies/include/cppmodel/Model.h`. SDK 0.6.x uses `unsigned long long
 simulationTime_ms`, as below; older releases used `double`. With `override`, a mismatch is a
 compile error rather than a silently never-called method:
 

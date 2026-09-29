@@ -122,6 +122,37 @@ paths:
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
+    delete:
+      tags:
+        - Simulations
+      operationId: simulations_simulation_delete
+      summary: Delete a simulation
+      description: >
+        Delete the simulation with all its executions, stored parameters and
+        any pending input document - the same as deleting it in the UI.
+        Irreversible. The SDK does the same from inside a simulation binary
+        with CppModel_resetData (C) / Simulation::ResetData() (C++) before the
+        run. A simulation that has never executed doesn't exist yet, so this
+        returns 404 for it - and a document posted for it stays pending until
+        its first execution consumes it.
+      parameters:
+        - $ref: "#/components/parameters/SimulationId"
+      responses:
+        "204":
+          description: Simulation deleted
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Simulation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
   /simulations/{simulationId}/inputs:
     get:
       tags:
@@ -172,14 +203,17 @@ paths:
         The document is consumed by the next execution (one-shot): when the
         simulation binary starts it fetches the pending document, and
         afterwards GET returns 404 until something is posted again. Post
-        right before each run. CppModel_getInput* / inputs["..."] read the
-        posted input series and CppModel_getParameter* / parameters["..."] the
-        posted parameters; a name that isn't posted returns the call's
-        fallback value. The execution records the values actually read (see
+        right before each run. CppModel_getInput* / inputs.GetSafe(...) read
+        the posted input series and CppModel_getParameter* /
+        GetParameter(...) the posted parameters; a name that isn't posted
+        returns the call's fallback value. Requires SDK 0.6.1 or later -
+        0.6.0 fetches and consumes the document without applying it. The
+        execution records every posted value plus the fallbacks used (see
         SimulationExecution), which is how to confirm a posted document was
-        applied. The simulation does not need to have run before. The server
-        currently stores the body as given without validating it - clients
-        should validate against SimulationInputs before posting.
+        applied. The simulation does not need to have run before. A pending
+        document doesn't expire. The server currently stores the body as
+        given without validating it - clients should validate against
+        SimulationInputs before posting.
       parameters:
         - $ref: "#/components/parameters/SimulationId"
       requestBody:
@@ -433,10 +467,15 @@ components:
 
     SimulationExecution:
       description: >
-        One execution: the inputs and parameters the simulation actually read
-        (a name it read but that wasn't posted appears with its fallback
-        value; a posted name it never read doesn't appear at all) plus every
-        output it produced. Series are change-compressed: x holds only the
+        One execution: every posted input and parameter, plus the fallback
+        value of each name the simulation read that wasn't posted, plus every
+        output it produced. A posted value always takes precedence over the
+        fallback, so each name has a single value per execution. Names are
+        also recorded when they are posted but never read, so names the
+        simulation no longer uses accumulate; delete the simulation (in the
+        UI, via DELETE /simulations/{simulationId}, or with
+        CppModel_resetData / Simulation::ResetData() before the run) to clear
+        them. Series are change-compressed: x holds only the
         times at which the value changed, plus the final time, so read them
         with the same hold-last-value rule as inputs.
       allOf:

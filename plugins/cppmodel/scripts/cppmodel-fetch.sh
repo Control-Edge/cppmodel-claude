@@ -103,6 +103,14 @@ set-inputs)
         "$CPPMODEL_API_BASE/simulations/$(url_encode "$2")/inputs"
     echo "Inputs saved for '$2'" >&2
     ;;
+delete)
+    # Deletes the simulation with all its executions and any pending inputs - same as deleting it in
+    # the UI. Irreversible, so it must be confirmed explicitly.
+    [ "${3:-}" = "--yes" ] || { echo "Usage: delete <simulation name> --yes   (irreversible: removes all executions)" >&2; exit 1; }
+    curl -s --fail-with-body -X DELETE -H "Authorization: Bearer $ACCESS_TOKEN" \
+        "$CPPMODEL_API_BASE/simulations/$(url_encode "$2")"
+    echo "Deleted simulation '$2'" >&2
+    ;;
 *)
     fetch "/simulations/$(url_encode "$1")" | python3 -m json.tool
     ;;

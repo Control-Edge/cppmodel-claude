@@ -49,8 +49,10 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-sweep.sh <plan.json> <out-dir> [--dry-run
 
 Do `cppmodel:simulation-inputs` step 1, which uses the latest execution record plus the source, to
 list every input and parameter the simulation reads, with exact names, types, and current values.
-A misspelled name silently uses its fallback. The runner reports posted names the simulation never
-read after the first run; treat that report as a probable typo until proven otherwise.
+A misspelled name silently uses its fallback, and the server records it like any other. Before
+posting anything, the runner warns about every varied name the latest execution didn't read.
+Treat that warning as a probable typo until the source proves otherwise. Posted documents are only
+applied from SDK 0.6.1 on; check the vendored version as `cppmodel:simulation-inputs` describes.
 
 ## 3. Design the sweep with the user
 
@@ -139,9 +141,9 @@ The runner stops, and re-posts any document that was pending before the sweep, i
 
 - **The simulation didn't use the posted values.** The recorded values differ from the posted
   ones, and the message lists posted vs read values per name. Report that verbatim to the user.
-  If the recorded values are the fallbacks, the simulation or SDK isn't applying posted inputs at
-  all. That's not something to fix in the plan; tell the user the SDK version in `dependencies/`
-  and that its posted-input handling needs checking.
+  If the recorded values are the fallbacks, the SDK isn't applying posted inputs at all. That
+  happens with SDKs before 0.6.1, and isn't something to fix in the plan; offer
+  `cppmodel:update-dependencies`.
 - **A run went offline** ("Running offline" in its log).
 - **A run created no new execution** on the server.
 - **Any API call failed.**
@@ -151,7 +153,7 @@ Report the reason from the output. Don't re-run blindly.
 ## 6. Analyse the results
 
 `<out>/summary.json` has one row per verified run: its values, `exitCode`, `passed`,
-`executionId`, `applied`, `notRead` (posted names the simulation never read), `results` (the
+`executionId`, `applied`, `results` (the
 execution record from the API) and `log`.
 
 - **Pass/fail map first.** Show a table with one row per run, or a 2-D grid when two things were

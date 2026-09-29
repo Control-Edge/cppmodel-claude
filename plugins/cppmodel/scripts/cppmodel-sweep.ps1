@@ -137,6 +137,20 @@ for ($i = 1; $i -le $Runs.Count; $i++) {
 }
 Write-Host "$($Runs.Count) run(s) prepared in $RunsDir"
 
+# A posted name the code never reads is accepted and even recorded, so a typo only shows up as the
+# fallback being used. Warn about names the latest execution didn't read before anything is posted.
+try {
+    $latest = Invoke-Fetch $Simulation | ConvertFrom-Json
+    $knownParams = @((Get-Props $latest.parameters) | ForEach-Object { $_.Name })
+    $knownInputs = @(@($latest.inputs) | Where-Object { $_ } | ForEach-Object { $_.label })
+    $unknown = @()
+    $unknown += @($Runs | ForEach-Object { $_.parameters.Keys } | Sort-Object -Unique | Where-Object { $knownParams -notcontains $_ } | ForEach-Object { "parameter `"$_`"" })
+    $unknown += @($Runs | ForEach-Object { $_.inputs.Keys } | Sort-Object -Unique | Where-Object { $knownInputs -notcontains $_ } | ForEach-Object { "input `"$_`"" })
+    if ($unknown.Count) { Write-Warning ("not read by the latest execution of this simulation - check for typos:`n  " + ($unknown -join "`n  ")) }
+} catch {
+    Write-Host "note: no previous execution to check names against - verify them against the source."
+}
+
 $RunFiles = @(Get-ChildItem $RunsDir -Filter "???.json" | Sort-Object Name)
 if ($DryRun) {
     foreach ($f in $RunFiles) { $m = Read-Json ($f.FullName -replace '\.json$', '.meta.json'); Write-Host ("{0:D3}  {1}" -f $m.run, $m.name) }
@@ -156,20 +170,21 @@ function Get-Held($Series, [double]$t) {
     for ($k = 0; $k -lt $x.Count -and $x[$k] -le $t; $k++) { $v = $y[$k] }
     return $v
 }
-# Compares the posted document with what the execution recorded as actually read.
+# Compares the posted document with what the execution recorded. Posted values take precedence
+# over fallbacks, so every posted name should appear with exactly the posted value.
 function Compare-Applied($Posted, $Recorded) {
-    $mismatches = @(); $notRead = @()
+    $mismatches = @()
     $recParams = @{}; foreach ($p in (Get-Props $Recorded.parameters)) { $recParams[$p.Name] = $p.Value }
     foreach ($p in (Get-Props $Posted.parameters)) {
         if ($p.Name -like "CppModel.*") { continue }
-        if (-not $recParams.ContainsKey($p.Name)) { $notRead += $p.Name }
+        if (-not $recParams.ContainsKey($p.Name)) { $mismatches += "parameter `"$($p.Name)`": posted $($p.Value), missing from the execution record" }
         elseif (-not (Test-Same $p.Value $recParams[$p.Name])) { $mismatches += "parameter `"$($p.Name)`": posted $($p.Value), simulation read $($recParams[$p.Name])" }
     }
     $recInputs = @{}; foreach ($s in @($Recorded.inputs)) { if ($s) { $recInputs[$s.label] = $s } }
     foreach ($s in @($Posted.inputs)) {
         if (-not $s) { continue }
         $rs = $recInputs[$s.label]
-        if (-not $rs) { $notRead += $s.label; continue }
+        if (-not $rs) { $mismatches += "input `"$($s.label)`": posted, missing from the execution record"; continue }
         $rx = @($rs.x); $ry = @($rs.y)
         for ($k = 0; $k -lt $rx.Count; $k++) {
             $want = Get-Held $s $rx[$k]
@@ -178,7 +193,7 @@ function Compare-Applied($Posted, $Recorded) {
             }
         }
     }
-    return @{ mismatches = $mismatches; notRead = $notRead }
+    return @{ mismatches = $mismatches }
 }
 
 $EnvVars = @{}
@@ -188,7 +203,6 @@ Get-Content (Join-Path $RepoRoot ".env") | ForEach-Object {
 
 $Summary = @()
 $exitStatus = 0
-$notReadReported = $false
 try {
     $prevId = Get-TopExecutionId
     foreach ($f in $RunFiles) {
@@ -229,21 +243,16 @@ try {
         # Did the simulation read what was posted? The execution records every input and parameter
         # it actually read - fallback values included - so compare those with the posted document.
         $check = Compare-Applied (Read-Json $f.FullName) (Read-Json $resultFile)
-        if ($check.notRead.Count -and -not $notReadReported) {
-            Write-Warning "the simulation never read $($check.notRead -join ', ') - a typo, or not used by this code"
-        }
-        $notReadReported = $true
         $meta | Add-Member NoteProperty exitCode $code
         $meta | Add-Member NoteProperty passed ($code -eq 0)
         $meta | Add-Member NoteProperty executionId $execId
         $meta | Add-Member NoteProperty applied ($check.mismatches.Count -eq 0)
-        $meta | Add-Member NoteProperty notRead @($check.notRead)
         $meta | Add-Member NoteProperty results "results/$n.json"
         $meta | Add-Member NoteProperty log "runs/$n.log"
         $Summary += $meta
         if ($check.mismatches.Count) {
             throw ("Run ${n}: the simulation did NOT use the posted values:`n  " + ($check.mismatches -join "`n  ") +
-                "`nIts results describe the default run, not this scenario. Aborting sweep.")
+                "`nIts results describe the default run, not this scenario (SDKs before 0.6.1 don't apply posted inputs - check dependencies\). Aborting sweep.")
         }
         Write-Host "    exit $code, execution $execId"
     }

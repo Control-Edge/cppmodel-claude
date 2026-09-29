@@ -10,9 +10,12 @@ A simulation reads two kinds of external data:
 - **Inputs**: time series, read each cycle with `CppModel_getInput{U8,...,F64}(self, "name",
   fallback)` in C, or `inputs.GetSafe("name", fallback)`/`inputs["name"]` in C++.
 - **Parameters**: constants, read with `CppModel_getParameter{U8,...,F64}(self, "name", fallback)`
-  in C, or the `parameters` JSON member in C++. `parameters` is `null` when nothing was posted,
-  so read it with `parameters.value("name", fallback)` only after checking
-  `parameters.is_object()`.
+  in C, or `GetParameter("name", fallback)` in a C++ `Simulation` subclass.
+
+**Posted documents are applied from SDK 0.6.1 on.** SDK 0.6.0 fetches and consumes them without
+applying them, so every run silently uses the fallbacks. Check the vendored version first: look
+for `CppModel_resetData` in `dependencies/include/cppmodel/CModel.h`, which 0.6.1 added. If it's
+older, offer `cppmodel:update-dependencies` before going further.
 
 Before the simulation binary starts, you can post a document with values for them to
 `/simulations/{id}/inputs`. Four facts, all confirmed against the live API, shape everything below:
@@ -22,10 +25,11 @@ Before the simulation binary starts, you can post a document with values for the
    run.
 2. **A name that isn't posted silently uses the fallback** in the code. A misspelled name looks
    like a normal run with default values.
-3. **Every execution records what the simulation actually read.** Its `inputs` and `parameters`
-   list every name the binary read, with the value it got: posted values, or fallback values for
-   names that weren't posted. This is how names are discovered (step 1) and how a run is verified
-   (step 5).
+3. **Every execution records the values it ran with.** Its `inputs` and `parameters` hold every
+   posted value, plus the fallback for each name the binary read that wasn't posted. A posted
+   value always wins over the fallback. This is how a run is verified (step 5). A posted name the
+   code never reads is recorded too, so the record can't reveal a typo; check names against the
+   source before posting (step 1).
 4. **The server stores whatever it's sent without validating it.** A wrong shape or mismatched
    `x`/`y` lengths are accepted silently. Validate before posting (step 3).
 
@@ -64,13 +68,16 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh "<simulation name>"             
 
 Use two sources:
 
-- **The latest execution record** (`cppmodel-fetch.sh "<simulation name>"`). Its `inputs[].label`
-  and `parameters` keys are exactly the names the binary read on its last run, with the values it
-  got. If the simulation has never run, build and run it once as `cppmodel:simulation-testing`
-  describes, with nothing posted, so every value is a fallback, then read the record.
-- **The source**, for what the record can't tell you:
+- **An execution record from a run with nothing posted.** Its `inputs[].label` and `parameters`
+  keys are exactly the names the binary read, each with its fallback value. A record from a run
+  that consumed a posted document also contains that document's names, whether the code reads
+  them or not. So if the latest execution consumed one (its values differ from the fallbacks), or
+  the simulation has never run, build and run it once with nothing pending, as
+  `cppmodel:simulation-testing` describes, then read the record.
+- **The source**, which is authoritative and also gives what the record can't:
   - Grep for `CppModel_getInput`/`CppModel_getParameter` (C), or `inputs[`,
-    `inputs.GetSafe(`, and `parameters` (C++), including inside project wrappers and plant models.
+    `inputs.GetSafe(`, and `GetParameter(`/`parameters` (C++), including inside project wrappers
+    and plant models.
   - Record each name's C type suffix (`U8`, `I32`, `F64`...), which gives its range and whether
     it's integral.
   - Note any name read only on some code paths; it's missing from a record whose run never
@@ -163,17 +170,17 @@ Compare its `parameters` and `inputs` with what you posted:
 - **Posted parameters** should appear with the posted value.
 - **Posted input series** should match when read with the hold rule. The recorded series are
   change-compressed: `x` holds only the times the value changed, plus the end time.
-- **A posted name missing from the record** was never read by the simulation. It's a typo, or
-  isn't used on this code path.
-- **A recorded value equal to the fallback instead of the posted value** means the document
-  wasn't applied. Stop and report it plainly, with posted vs recorded values. This run's results
+- **A recorded value equal to the fallback instead of the posted value**, or a posted name
+  missing from the record, means the document wasn't applied. The usual cause is an SDK older
+  than 0.6.1. Stop and report it plainly, with posted vs recorded values. This run's results
   describe the default run, not the requested scenario. Don't present them as the scenario's
   outcome, and don't work around it by editing the simulation's fallback values, unless the user
   asks for that explicitly.
 
 Once the values are confirmed, report:
 
-- pass/fail: the exit code, and whether `CppModel.StepResult` in `results` ever dropped to 0
+- pass/fail: whether `CppModel.StepResult` in `results` ever dropped to 0. The exit code is 0
+  for a pass and nonzero for a fail; 0.6.1 exits with 255.
 - what the scenario showed in the outputs the user cares about
 
 If the run failed and the reason isn't obvious, continue with `cppmodel:simulation-testing`'s
@@ -185,3 +192,18 @@ The document was consumed, so nothing needs restoring and later runs (`ctest`, C
 To run the same scenario again, post the saved file again before the run. If step 2 found someone
 else's pending document that you replaced, tell the user it's gone, and offer to re-post the copy
 saved in step 2.
+
+## Starting over: deleting a simulation's data
+
+To wipe a simulation's executions, stored parameters, and any pending document (the same as
+deleting it in the UI), use:
+
+```
+cppmodel-fetch.sh delete "<simulation name>" --yes
+```
+
+The code can do the same itself with `CppModel_resetData(sim)` (C) or `ResetData()` (C++), called
+before `CppModel_Simulate`/`Simulate()`. Both are irreversible and remove the execution history
+other people may rely on. Only do it when the user asks, after saying exactly what will be lost.
+A simulation that has never executed returns 404, and a document posted for it stays pending until
+its first run consumes it.

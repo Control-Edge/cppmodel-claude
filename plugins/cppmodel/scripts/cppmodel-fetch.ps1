@@ -122,6 +122,17 @@ elseif ($PositionalArgs[0] -eq "set-inputs") {
         -ContentType "application/json; charset=utf-8" -Headers @{ Authorization = "Bearer $AccessToken" } | Out-Null
     Write-Host "Inputs saved for '$($PositionalArgs[1])'"
 }
+elseif ($PositionalArgs[0] -eq "delete") {
+    # Deletes the simulation with all its executions and any pending inputs - same as deleting it in
+    # the UI. Irreversible, so it must be confirmed explicitly.
+    if ($PositionalArgs[2] -ne "--yes") {
+        Write-Error "Usage: delete <simulation name> --yes   (irreversible: removes all executions)"
+        exit 1
+    }
+    $Name = UrlEncode $PositionalArgs[1]
+    Invoke-RestMethod -Uri "$ApiBase/simulations/$Name" -Method Delete -Headers @{ Authorization = "Bearer $AccessToken" } | Out-Null
+    Write-Host "Deleted simulation '$($PositionalArgs[1])'"
+}
 else {
     $Name = UrlEncode $PositionalArgs[0]
     Invoke-CppModelApi "/simulations/$Name" | ConvertTo-Json -Depth 10

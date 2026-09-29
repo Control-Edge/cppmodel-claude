@@ -19,7 +19,8 @@
 #
 # Posted inputs are consumed by the next execution, so each run posts its own document right before
 # it starts. After every run the execution's recorded inputs/parameters are compared with what was
-# posted, and the sweep stops if the simulation didn't actually use them.
+# posted, and the sweep stops if the simulation didn't actually use them (SDKs before 0.6.1
+# consume posted documents without applying them).
 #
 # Output in <out-dir>: runs/NNN.json (posted body), runs/NNN.log (binary output), results/NNN.json
 # (the execution from the API), summary.json. A document that was already pending before the
@@ -58,7 +59,7 @@ if [ "$DRY_RUN" = 0 ] && [ ! -x "$BINARY" ]; then
 fi
 case "$BASE_KIND" in defaults|current|inline) ;; *) echo "Unknown base \"$BASE_KIND\" - use \"defaults\", \"current\", or an inline document." >&2; exit 1 ;; esac
 
-rm -f "$OUT"/runs/* "$OUT"/results/* "$OUT/summary.json" "$OUT/pending-before.json" "$OUT/base.json"
+rm -f "$OUT"/runs/* "$OUT"/results/* "$OUT/summary.json" "$OUT/pending-before.json" "$OUT/base.json" "$OUT/known-names.json"
 
 # A document someone already posted for the next execution. GET returns 404 ("No input data
 # found") when there is none, which is the normal case.
@@ -85,6 +86,14 @@ if [ "$BASE_KIND" = current ]; then
         echo "Base: defaults (no pending document and no previous execution)."
     fi
 fi
+
+# Names the simulation is known to use: the latest execution records every input/parameter it read.
+KNOWN_NAMES="$OUT/known-names.json"
+if fetch "$SIMULATION" 2>/dev/null | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+json.dump({'inputs': [s['label'] for s in d.get('inputs', [])], 'parameters': list(d.get('parameters', {}))}, open(sys.argv[1], 'w'))
+" "$KNOWN_NAMES" 2>/dev/null; then :; else rm -f "$KNOWN_NAMES"; fi
 
 # Expand the plan into one full inputs document per run.
 python3 - "$PLAN" "$OUT" <<'EOF'
@@ -143,6 +152,21 @@ for i, r in enumerate(runs, 1):
             "inputs": r["variants"] or sorted(r["inputs"])}
     json.dump(meta, open(f"{out}/runs/{i:03d}.meta.json", "w"), indent=2)
 print(f"{len(runs)} run(s) prepared in {out}/runs")
+
+# A posted name the code never reads is accepted and even recorded, so a typo only shows up as the
+# fallback being used. Warn about names the latest execution didn't read before anything is posted.
+import os
+known_path = f"{out}/known-names.json"
+if os.path.exists(known_path):
+    known = json.load(open(known_path))
+    varied_p = sorted({k for r in runs for k in r["parameters"]} - set(known["parameters"]))
+    varied_i = sorted({k for r in runs for k in r["inputs"]} - set(known["inputs"]))
+    if varied_p or varied_i:
+        print("WARNING: not read by the latest execution of this simulation - check for typos:"
+              + "".join(f"\n  parameter \"{k}\"" for k in varied_p)
+              + "".join(f"\n  input \"{k}\"" for k in varied_i), file=sys.stderr)
+else:
+    print("note: no previous execution to check names against - verify them against the source.", file=sys.stderr)
 EOF
 
 RUN_FILES=("$OUT"/runs/[0-9][0-9][0-9].json)
@@ -171,7 +195,6 @@ PREV_ID="$(top_execution_id)"
 
 SUMMARY_LINES="$OUT/.summary.jsonl"
 : >"$SUMMARY_LINES"
-NOT_READ_REPORTED=0
 for f in "${RUN_FILES[@]}"; do
     n="$(basename "$f" .json)"
     echo "=== Run $n: $(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['name'])" "$OUT/runs/$n.meta.json")"
@@ -204,9 +227,9 @@ for f in "${RUN_FILES[@]}"; do
     # Did the simulation read what was posted? The execution records every input and parameter it
     # actually read - fallback values included - so compare those with the posted document.
     set +e
-    python3 - "$f" "$OUT/results/$n.json" "$OUT/runs/$n.meta.json" "$code" "$exec_id" "$n" "$NOT_READ_REPORTED" >>"$SUMMARY_LINES" <<'EOF'
+    python3 - "$f" "$OUT/results/$n.json" "$OUT/runs/$n.meta.json" "$code" "$exec_id" "$n" >>"$SUMMARY_LINES" <<'EOF'
 import bisect, json, sys
-posted_path, rec_path, meta_path, code, exec_id, n, not_read_reported = sys.argv[1:]
+posted_path, rec_path, meta_path, code, exec_id, n = sys.argv[1:]
 posted, rec, meta = json.load(open(posted_path)), json.load(open(rec_path)), json.load(open(meta_path))
 
 def same(a, b):
@@ -216,20 +239,20 @@ def hold(series, t):
     i = bisect.bisect_right(series["x"], t) - 1
     return series["y"][i] if i >= 0 else None
 
-mismatches, not_read = [], []
+mismatches = []
 rec_params = rec.get("parameters", {})
 for k, v in posted.get("parameters", {}).items():
     if k.startswith("CppModel."):
         continue
     if k not in rec_params:
-        not_read.append(k)
+        mismatches.append(f'parameter "{k}": posted {v}, missing from the execution record')
     elif not same(v, rec_params[k]):
         mismatches.append(f'parameter "{k}": posted {v}, simulation read {rec_params[k]}')
 rec_inputs = {s["label"]: s for s in rec.get("inputs", [])}
 for s in posted.get("inputs", []):
     r = rec_inputs.get(s["label"])
     if r is None:
-        not_read.append(s["label"])
+        mismatches.append(f'input "{s["label"]}": posted, missing from the execution record')
         continue
     for t, got in zip(r["x"], r["y"]):
         want = hold(s, t)
@@ -237,20 +260,18 @@ for s in posted.get("inputs", []):
             mismatches.append(f'input "{s["label"]}" at {t} ms: posted {want}, simulation read {got}')
             break
 
-if not_read and not_read_reported == "0":
-    print(f"    note: the simulation never read {not_read} - a typo, or not used by this code", file=sys.stderr)
 meta.update(exitCode=int(code), passed=code == "0", executionId=exec_id, applied=not mismatches,
-            notRead=not_read, results=f"results/{n}.json", log=f"runs/{n}.log")
+            results=f"results/{n}.json", log=f"runs/{n}.log")
 print(json.dumps(meta))
 if mismatches:
     print("Run " + n + ": the simulation did NOT use the posted values:\n  " + "\n  ".join(mismatches) +
-          "\nIts results describe the default run, not this scenario. Aborting sweep.", file=sys.stderr)
+          "\nIts results describe the default run, not this scenario (SDKs before 0.6.1 don't apply"
+          " posted inputs - check dependencies/). Aborting sweep.", file=sys.stderr)
     sys.exit(2)
 EOF
     check=$?
     set -e
     [ "$check" = 0 ] || exit 1
-    NOT_READ_REPORTED=1
     echo "    exit $code, execution $exec_id"
 done
 

@@ -40,6 +40,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh executions "<simulation name>"  
 ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh execution "<simulation name>" <execution id>  # one past execution's trace
 ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh inputs "<simulation name>"    # inputs/parameters its next run will use
 ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh set-inputs "<simulation name>" <file.json>  # replace them (see below)
+${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh delete "<simulation name>" --yes  # IRREVERSIBLE: all executions (see below)
 ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh --workspace <id> ...         # override auto-detected workspace
 ```
 
@@ -50,6 +51,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh --workspace <id> ...         # o
 & "${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.ps1" execution "<simulation name>" <execution id>
 & "${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.ps1" inputs "<simulation name>"
 & "${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.ps1" set-inputs "<simulation name>" <file.json>
+& "${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.ps1" delete "<simulation name>" --yes
 & "${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.ps1" --workspace <id> ...
 ```
 
@@ -57,6 +59,11 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh --workspace <id> ...         # o
 found" means nothing is pending, which is normal. `set-inputs` posts one, and the next execution
 consumes it. Don't call it directly from here. Use `cppmodel:simulation-inputs` for one scenario
 or `cppmodel:parameter-sweep` for many; both validate the document and verify it was applied.
+
+`delete` removes the simulation with its entire execution history and any pending document, the
+same as deleting it in the UI. It can't be undone and affects everyone who uses that simulation,
+so only run it when the user explicitly asks, after telling them what will be lost. The script
+refuses without `--yes`.
 
 The simulation name is exactly the string passed to `CMODEL_SIMULATE(...)` in the source - it may contain spaces, quote it.
 
@@ -66,10 +73,11 @@ Each command prints pretty-printed JSON. The full API contract (endpoints, respo
 
 A result (latest, or one execution by id) is one JSON document:
 
-- `inputs`: a list of `{label, x, y}`, with every `CppModel_getInput*` the simulation read and
-  the values it got (posted, or the fallback);
-- `parameters`: every `CppModel_getParameter*` it read, name → value, plus the reserved
-  `CppModel.SimulationTime`/`StepSize`, in seconds;
+- `inputs`: a list of `{label, x, y}`, with every posted input plus the fallback of each
+  `CppModel_getInput*` the simulation read that wasn't posted;
+- `parameters`: the same for parameters, name → value, plus the reserved
+  `CppModel.SimulationTime`/`StepSize`, in seconds. A posted name appears even if the code never
+  reads it;
 - `results`: a list of `{label, x, y}` output series, including `CppModel.StepResult`.
 
 `x` is simulation time in ms. Series are change-compressed: `x` holds only the times the value

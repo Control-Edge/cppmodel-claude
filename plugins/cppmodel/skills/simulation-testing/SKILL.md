@@ -70,9 +70,11 @@ competing mechanism alongside it.
 
 If no such wrapper exists, subclass `CppModelBase::Simulation` directly: override `RunCyclic` as
 the per-cycle callback, with the exact parameter type from the vendored `cppmodel/Model.h` (SDK
-0.6.0: `unsigned long long simulationTime_ms`; older releases: `double`), use `inputs["name"]` / `outputs["name"]`
-(`SimulationInputs`/`SimulationOutputs`, indexable like a map) to cross the boundary, and always
-set `outputs["CppModel.StepResult"]`. `main()` constructs the simulation object and calls
+0.6.x: `unsigned long long simulationTime_ms`; older releases: `double`). Use
+`inputs.GetSafe("name", fallback)` / `outputs["name"]` (`SimulationInputs`/`SimulationOutputs`,
+indexable like a map) to cross the boundary, and always set `outputs["CppModel.StepResult"]`.
+Read parameters with `GetParameter("name", fallback)` (SDK 0.6.1+), which returns the posted value
+or else records and returns the fallback. `main()` constructs the simulation object and calls
 `.Simulate()`.
 
 Any C++ file that includes the SDK's headers (`Simulation.h` pulls in the header-only `httplib.h`)

@@ -81,7 +81,7 @@ one from your login automatically, and every skill works the same with either.
 - `plugins/cppmodel/skills/simulation-inputs/SKILL.md` - the inputs/parameters skill
 - `plugins/cppmodel/skills/parameter-sweep/SKILL.md` - the sweep skill
 - `plugins/cppmodel/scripts/cppmodel-fetch.sh` / `.ps1` - the CLI the query skill wraps (bash and
-  PowerShell versions, list / get / executions / execution / inputs / set-inputs, with automatic
+  PowerShell versions, list / get / executions / execution / inputs / set-inputs / delete, with automatic
   per-workspace routing)
 - `plugins/cppmodel/scripts/cppmodel-sweep.sh` / `.ps1` - the sweep runner: posts each run's
   inputs, runs the binary, fetches that run's execution, and checks the posted values were used
