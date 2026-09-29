@@ -44,7 +44,7 @@ A Claude Code plugin for projects using the CppModel libraries. Eight skills:
 
 ## Requirements
 
-A CppModel license, and a `.env` file at your project root:
+A CppModel account (free or licensed), and a `.env` file at your project root:
 
 ```
 CPPMODEL_USERNAME=...
@@ -53,7 +53,9 @@ CPPMODEL_CLIENT_ID=cppmodel-frontend
 ```
 
 Installing the plugin is free and requires nothing further; using it against real data still
-requires a valid CppModel account.
+requires a CppModel account. Free accounts use the shared `free-workspace.cppmodel.com` workspace
+and licensed ones their dedicated `w<number>.cppmodel.com` workspace. The plugin picks the right
+one from your login automatically, and every skill works the same with either.
 
 ## What's inside
 

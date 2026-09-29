@@ -9,12 +9,14 @@ info:
     url: https://cppmodel.com
 servers:
   - url: https://{workspace}.cppmodel.com/api
-    description: Dedicated per-customer workspace
+    description: Dedicated per-customer workspace (licensed accounts)
     variables:
       workspace:
         default: w100435
         description: >
           Workspace subdomain, assigned when the workspace is provisioned.
+  - url: https://free-workspace.cppmodel.com/api
+    description: Shared workspace for free accounts
 security:
   - keycloak: []
 tags:

@@ -15,7 +15,7 @@ below matters.
 
 No authentication is needed to download from `download.cppmodel.com` itself - it's a plain static
 file index. (`CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD`, see `cppmodel:simulations`, are for the
-Workspace API/license, not for fetching the SDK.)
+Workspace API, not for fetching the SDK - free and licensed accounts download the same archives.)
 
 ## 1. Determine the current version
 

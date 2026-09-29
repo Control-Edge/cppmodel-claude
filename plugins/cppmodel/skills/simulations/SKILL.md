@@ -5,7 +5,7 @@ description: Query CppModel Workspace API results - list simulations, fetch the 
 
 ## Requirements
 
-A valid CppModel license, and `.env` at the project root with:
+A CppModel account (free or licensed - both work the same way here), and `.env` at the project root with:
 
 ```
 CPPMODEL_USERNAME=...
@@ -17,9 +17,14 @@ If `.env` is missing these, tell the user and stop - do not guess or fabricate c
 
 ## Finding the workspace
 
-CppModel is multi-tenant: each customer's API lives at `https://{workspace}.cppmodel.com/api`, not a shared host. `${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh` derives the workspace automatically from the access token's `groups` claim and only needs `--workspace <id>` if that token belongs to more than one workspace (the script will say so explicitly if that happens).
+CppModel is multi-tenant: the API lives at `https://{workspace}.cppmodel.com/api`, where `{workspace}` depends on the account type:
 
-If no `.env` exists yet and the user has no token, the fastest way to learn the workspace with zero auth is to build and run any of their CppModel simulation binaries once - it prints a line like `UI: https://w20011.cppmodel.com/simulations/<name>` on stdout.
+- **Licensed accounts** get a dedicated workspace with a `w<number>` subdomain, e.g. `w20011.cppmodel.com`.
+- **Free accounts** share a single workspace, `free-workspace.cppmodel.com`. The API and scripts behave the same there. Results are still per user, which is why the list command asks for `scope=user`.
+
+`${CLAUDE_PLUGIN_ROOT}/scripts/cppmodel-fetch.sh` derives the workspace automatically from the access token's `groups` claim (`w<number>` for licensed, `free-workspace` for free accounts). It only needs `--workspace <id>` if that token belongs to more than one workspace; the script will say so explicitly if that happens. Don't assume a `w<number>` workspace when reading the user's setup or explaining a URL.
+
+If no `.env` exists yet and the user has no token, the fastest way to learn the workspace with zero auth is to build and run any of their CppModel simulation binaries once - it prints a line like `UI: https://w20011.cppmodel.com/simulations/<name>` (or `UI: https://free-workspace.cppmodel.com/...` for a free account) on stdout.
 
 ## Usage
 

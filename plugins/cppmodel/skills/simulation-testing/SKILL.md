@@ -5,7 +5,7 @@ description: Write, extend, or debug a CppModel-based simulation test, in C (Cpp
 
 ## Requirements: check credentials before running or debugging anything
 
-Running a simulation binary or fetching its results both need a valid CppModel license and `.env`
+Running a simulation binary or fetching its results both need a CppModel account (free or licensed) and `.env`
 at the project root with:
 
 ```
