@@ -5,19 +5,21 @@ description: Write, extend, or debug a CppModel-based simulation test, in C (Cpp
 
 ## Requirements: check credentials before running or debugging anything
 
-Running a simulation binary or fetching its results both need a CppModel account (free or licensed) and `.env`
-at the project root with:
+Running a simulation binary needs a CppModel account (free or licensed) and `.env` at the
+project root with:
 
 ```
 CPPMODEL_USERNAME=...
 CPPMODEL_PASSWORD=...
 ```
 
-Check this *before* running a binary or querying results, not after something fails. If `.env` is
+Check this *before* running a binary, not after something fails. If `.env` is
 missing these, tell the user and stop - do not guess, fabricate, or improvise a workaround (e.g.
 searching the local filesystem for prior results, or writing new code to reconstruct what the API
 would have returned). Writing or editing test/model code doesn't need credentials; running a
-simulation or reading its outcome does.
+simulation does. Reading its outcome goes through the `cppmodel` MCP server (see
+`cppmodel:simulations`); if its tools are unavailable or unauthenticated, tell the user to
+authenticate it with `/mcp` and stop, for the same reason.
 
 ## Which side is being simulated
 
@@ -143,14 +145,15 @@ even run manually indefinitely without ever actually gating anything.
 
 The binary's stdout gives nothing to work with beyond pass/fail and a `UI: https://...` link -
 there is no local log, file, or cache holding the per-cycle signal trace. It only exists behind the
-Workspace API. Use `cppmodel-tool fetch "<SimulationName>"` (the SDK's tool; see the
-`cppmodel:simulations` skill for building it) to pull the
-full execution trace: every `CppModel_getInput` signal under `inputs`, every
+Workspace API. Use the `cppmodel` MCP server's `get_latest_result` (see `cppmodel:simulations`)
+to pull the full execution trace: every `CppModel_getInput` signal under `inputs`, every
 `CppModel_getParameter` under `parameters`, and every `CppModel_setOutput` signal (including
 `CppModel.StepResult` and `internalStepNumber`) under `results`, each series as `{label, x, y}`
 with `x` in ms. Series only have points where the value changed, plus the end time. Don't grep the project for prior output, don't add
 extra logging/printf/file-dumping to the simulation to work around this, and don't write a new
-script to reconstruct the trace - the tool already returns it.
+script to reconstruct the trace - the tool already returns it. For a long run, call it with
+`summary: true` first, then with `signals: [...]` for `CppModel.StepResult`,
+`internalStepNumber`, and the signals around the failure.
 
 Workflow:
 

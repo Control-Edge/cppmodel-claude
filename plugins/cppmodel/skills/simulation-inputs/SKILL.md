@@ -1,6 +1,6 @@
 ---
 name: cppmodel:simulation-inputs
-description: Run a CppModel simulation with specific inputs (time series read by CppModel_getInput* / inputs["..."]) and parameters (constants read by CppModel_getParameter* / parameters["..."]) without editing or rebuilding it, by posting them to the Workspace API's /simulations/{id}/inputs endpoint right before a run. Finds the exact names the simulation reads, builds and validates the input document, posts it, runs the simulation, and confirms from the execution record that the values were really applied. Use when asked to run a simulation with given inputs/parameters or a named scenario, to try "what if <parameter> = X", or to see which inputs and parameters a simulation reads. For many runs over a range of values, use cppmodel:parameter-sweep instead.
+description: Run a CppModel simulation with specific inputs (time series read by CppModel_getInput* / inputs["..."]) and parameters (constants read by CppModel_getParameter* / parameters["..."]) without editing or rebuilding it, by posting them through the cppmodel MCP server's set_inputs right before a run. Finds the exact names the simulation reads, builds and validates the input document, posts it, runs the simulation, and confirms from the execution record that the values were really applied. Use when asked to run a simulation with given inputs/parameters or a named scenario, to try "what if <parameter> = X", or to see which inputs and parameters a simulation reads. For many runs over a range of values, use cppmodel:parameter-sweep instead.
 ---
 
 ## What this is
@@ -17,12 +17,12 @@ applying them, so every run silently uses the fallbacks. Check the vendored vers
 for `CppModel_resetData` in `dependencies/include/cppmodel/CModel.h`, which 0.6.1 added. If it's
 older, offer `cppmodel:update-dependencies` before going further.
 
-Before the simulation binary starts, you can post a document with values for them to
-`/simulations/{id}/inputs`. Four facts, all confirmed against the live API, shape everything below:
+Before the simulation binary starts, you can post a document with values for them with the
+`cppmodel` MCP server's `set_inputs` tool. Four facts, all confirmed against the live API, shape
+everything below:
 
-1. **The document is one-shot.** The next execution consumes it; afterwards `GET .../inputs`
-   returns 404 ("No input data found") until something is posted again. Post right before each
-   run.
+1. **The document is one-shot.** The next execution consumes it; afterwards `get_pending_inputs`
+   finds nothing until something is posted again. Post right before each run.
 2. **A name that isn't posted silently uses the fallback** in the code. A misspelled name looks
    like a normal run with default values.
 3. **Every execution records the values it ran with.** Its `inputs` and `parameters` hold every
@@ -30,14 +30,15 @@ Before the simulation binary starts, you can post a document with values for the
    value always wins over the fallback. This is how a run is verified (step 5). A posted name the
    code never reads is recorded too, so the record can't reveal a typo; check names against the
    source before posting (step 1).
-4. **The server stores whatever it's sent without validating it.** A wrong shape or mismatched
-   `x`/`y` lengths are accepted silently. Validate before posting (step 3).
+4. **The document replaces any pending one, and must be complete.** `set_inputs` checks its
+   shape and compares its names with the latest execution: `unrecognizedNames` were never
+   recorded there (likely typos), `notPosted` will use their fallbacks. Use `dry_run: true` to get
+   that check without posting (step 3).
 
-Document format (`SimulationInputs` in `${CLAUDE_PLUGIN_ROOT}/api/workspace-api.yaml`):
+Document format (the `set_inputs` arguments besides `simulation`):
 
 ```json
 {
-  "executionTime": "22-09-2026 05:33:47",
   "inputs": [
     { "label": "Desired Velocity [mm/s]", "x": [0, 300, 600], "y": [50.0, 150.0, 30.0] }
   ],
@@ -51,21 +52,11 @@ Document format (`SimulationInputs` in `${CLAUDE_PLUGIN_ROOT}/api/workspace-api.
 
 ## Requirements
 
-`.env` at the project root with `CPPMODEL_USERNAME` and `CPPMODEL_PASSWORD`; see
-`cppmodel:simulation-testing`. If they're missing, tell the
-user and stop. The simulation doesn't need to have run before for a POST to be accepted.
-
-All API access goes through the SDK's `cppmodel-tool`. See `cppmodel:simulations` ("The tool")
-for finding or building it:
-
-```
-cppmodel-tool fetch inputs "<simulation name>"                  # pending document (404 = none)
-cppmodel-tool fetch set-inputs "<simulation name>" <file.json>  # post one
-cppmodel-tool fetch "<simulation name>"                         # latest execution record
-```
-
-`set-inputs` refuses a file that isn't valid JSON (exit 2) before contacting the server. It doesn't
-check the document's shape, so step 3's checks still apply.
+- The `cppmodel` MCP server, authenticated (see `cppmodel:simulations`). It provides
+  `get_pending_inputs`, `set_inputs`, and `get_latest_result`, used below. The simulation doesn't
+  need to have run before for a post to be accepted.
+- `.env` at the project root with `CPPMODEL_USERNAME` and `CPPMODEL_PASSWORD`, to run the binary;
+  see `cppmodel:simulation-testing`. If they're missing, tell the user and stop.
 
 ## 1. Find every input and parameter name
 
@@ -95,14 +86,10 @@ authoring anything.
 
 ## 2. Check nothing is already pending
 
-```
-cppmodel-tool fetch inputs "<simulation name>"
-```
-
-The normal answer is 404, meaning nothing is pending. If a document comes back, someone (the web
-UI, a teammate, an interrupted run) posted it for the next execution and it hasn't been consumed.
-Save it to a scratch file and show it to the user before replacing it, since posting overwrites
-it.
+Call `get_pending_inputs`. The normal answer is that nothing is pending. If a document comes back,
+someone (the web UI, a teammate, an interrupted run) posted it for the next execution and it hasn't
+been consumed. Save it to a scratch file and show it to the user before replacing it, since posting
+overwrites it.
 
 ## 3. Author and validate the document
 
@@ -111,7 +98,8 @@ ask to change keeps today's values explicitly. Then apply the user's changes.
 
 Inputs:
 
-- **`x` is simulation time in milliseconds**, ascending, starting at `0`. `y` has the same length.
+- **`x` is simulation time in milliseconds**, strictly ascending, starting at `0`. `y` has the
+  same length.
 - **Values are held between points** (zero-order hold). At time t the input reads the `y` of the
   latest `x` <= t, and the last point holds to the end.
   - A step needs one point at the step time: `x: [0, 300], y: [50, 150]`. Paired points like
@@ -129,14 +117,17 @@ Parameters:
   Don't use them to change the run length unless a run confirms the binary honours them: check
   that the recorded time axis actually changed.
 
-Set `executionTime` to now, as `DD-MM-YYYY HH:MM:SS`.
+Check the document before posting:
 
-The server won't catch mistakes, so check before posting:
-
-- the top level is `{"inputs": [...], "parameters": {...}}`
-- every input has `label`, `x`, and `y`, with equal lengths and `x` ascending
+- every input has `label`, `x`, and `y`, with equal lengths and `x` strictly ascending from `0`
 - every parameter value is a number
 - names match step 1 exactly
+
+Then call `set_inputs` with `dry_run: true`. A broken document comes back as an error listing
+every problem ("The document wasn't posted: ..."); fix them all. A valid one returns `posted:
+false` with `unrecognizedNames`, `notPosted` (`{inputs, parameters}`) and `warnings`. Treat every
+`unrecognizedNames` entry as a typo until the source proves otherwise, confirm every `notPosted`
+name is meant to use its fallback, and show the user any `warnings`.
 
 Save the document as a file:
 
@@ -148,27 +139,18 @@ Ask the user which.
 
 ## 4. Post, then run immediately
 
-```
-cppmodel-tool fetch set-inputs "<simulation name>" <file.json>
-```
-
-Build and run the binary straight away, as `cppmodel:simulation-testing` describes ("Build and
-run"), with `.env` sourced. Any other execution of this simulation in between would consume the
-document instead: a `ctest` run, a CI job on the same account, or a run started from the web UI.
-Check none is running.
+Call `set_inputs` with the saved document (without `dry_run`). Build and run the binary straight
+away, as `cppmodel:simulation-testing` describes ("Build and run"), with `.env` sourced. Any other
+execution of this simulation in between would consume the document instead: a `ctest` run, a CI job
+on the same account, or a run started from the web UI. Check none is running.
 
 If the binary's output says `Could not reach API. Running offline.`, it never fetched the document.
 Say so and stop.
 
 ## 5. Confirm the values were applied, then report
 
-Fetch the execution record:
-
-```
-cppmodel-tool fetch "<simulation name>"
-```
-
-Compare its `parameters` and `inputs` with what you posted:
+Fetch the execution record with `get_latest_result` (pass `signals` to limit it to the series
+you posted and the outputs you need). Compare its `parameters` and `inputs` with what you posted:
 
 - **Posted parameters** should appear with the posted value.
 - **Posted input series** should match when read with the hold rule. The recorded series are
@@ -198,15 +180,10 @@ saved in step 2.
 
 ## Starting over: deleting a simulation's data
 
-To wipe a simulation's executions, stored parameters, and any pending document (the same as
-deleting it in the UI), use:
-
-```
-cppmodel-tool fetch delete "<simulation name>" --yes
-```
-
-The code can do the same itself with `CppModel_resetData(sim)` (C) or `ResetData()` (C++), called
-before `CppModel_Simulate`/`Simulate()`. Both are irreversible and remove the execution history
-other people may rely on. Only do it when the user asks, after saying exactly what will be lost.
-A simulation that has never executed returns 404, and a document posted for it stays pending until
-its first run consumes it.
+To wipe a simulation's executions, stored parameters, and any pending document (the same as deleting
+it in the UI), use the `delete_simulation` tool. The code can do the same itself with
+`CppModel_resetData(sim)` (C) or `ResetData()` (C++), called before
+`CppModel_Simulate`/`Simulate()`. Both are irreversible and remove the execution history other
+people may rely on. Only do it when the user asks, after saying exactly what will be lost. A
+simulation that has never executed can't be deleted, and a document posted for it stays pending
+until its first run consumes it.

@@ -14,8 +14,8 @@ by git (check `.gitignore`) - there is no source-control safety net for it, whic
 below matters.
 
 No authentication is needed to download from `download.cppmodel.com` itself - it's a plain static
-file index. (`CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD`, see `cppmodel:simulations`, are for the
-Workspace API, not for fetching the SDK - free and licensed accounts download the same archives.)
+file index. (`CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD`, see `cppmodel:simulation-testing`, are for running
+simulations against the Workspace API, not for fetching the SDK - free and licensed accounts download the same archives.)
 
 ## 1. Determine the current version
 
@@ -168,8 +168,7 @@ tests pass, it's safe to remove the backup.
 
 If `cppmodel-tool` was built from `dependencies/share/cppmodel/tools` (usually into
 `build/cppmodel-tool/`), rebuild it too, with `cmake --build build/cppmodel-tool`, so it matches
-the new SDK. If the new SDK is the first to ship that folder (0.6.2+), offer to build it; see
-`cppmodel:simulations`.
+the new SDK. It's only needed for `cppmodel:parameter-sweep`, which covers building it.
 
 ## 9. Offer to keep CI and docs in sync
 

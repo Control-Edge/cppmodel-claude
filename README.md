@@ -10,9 +10,9 @@ A Claude Code plugin for projects using the CppModel libraries. Ten skills:
   simulation test, in either C or C++ (whichever the project already uses, or is chosen via
   `cppmodel:language`), including using the API trace to pinpoint why a test failed instead of
   guessing from stdout.
-- **`cppmodel:simulations`** - query the Workspace API through `cppmodel-tool`, the command-line
-  tool that ships as source with the CppModel SDK (0.6.2+): list your simulations, fetch a
-  simulation's latest results, list its execution history, or fetch one past execution.
+- **`cppmodel:simulations`** - query the Workspace API through the plugin's `cppmodel` MCP server
+  (`mcp.cppmodel.com`): list your simulations, fetch a simulation's latest results, list its
+  execution history, or fetch one past execution.
 - **`cppmodel:simulation-inputs`** - run a simulation with specific inputs (time series) and
   parameters (constants) posted through the Workspace API, without editing or rebuilding it. Finds
   the exact names the simulation reads, validates and posts the document right before the run (the
@@ -51,9 +51,13 @@ A Claude Code plugin for projects using the CppModel libraries. Ten skills:
 /plugin install cppmodel@cppmodel-tools
 ```
 
+The plugin connects Claude Code to the `cppmodel` MCP server at `https://mcp.cppmodel.com/mcp`.
+Run `/mcp` once and authenticate it with your CppModel account.
+
 ## Requirements
 
-A CppModel account (free or licensed), and a `.env` file at your project root:
+A CppModel account (free or licensed). Running simulations also needs a `.env` file at your
+project root:
 
 ```
 CPPMODEL_USERNAME=...
@@ -84,4 +88,4 @@ one from your login automatically, and every skill works the same with either.
   platform/compiler and fetch the CppModel SDK into `dependencies/`. The `cppmodel:ci-pipeline`
   and `cppmodel:update-dependencies` skills copy them into a project; `cppmodel:setup-environment`
   also runs them directly with an explicit compiler for first-time setup
-- `plugins/cppmodel/api/workspace-api.yaml` - the full Workspace API spec
+- `plugins/cppmodel/.mcp.json` - the `cppmodel` MCP server the query and inputs skills use

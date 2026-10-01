@@ -277,6 +277,6 @@ doesn't matter for the controller, not because you didn't ask.
 Building the model is not the end of the task - it's not runnable or verifiable on its own. Once
 the model and starter simulation exist, use the `cppmodel:simulation-testing` skill to add real
 test scenarios and assertions, build, and run it; that skill in turn hands off to
-`cppmodel:simulations` to check credentials and fetch results from the Workspace API. Don't stop
+`cppmodel:simulations` to fetch results through the `cppmodel` MCP server. Don't stop
 after scaffolding the model and call the task done - a customer asking to "simulate X" wants it
 built, tested, run, and its results checked, not just the model file.

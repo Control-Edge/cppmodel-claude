@@ -237,10 +237,11 @@ with `CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD` (see
 the user what to add. Don't run `ctest` without it; the resulting failures would look like
 regressions when they aren't.
 
-If the SDK ships `share/cppmodel/tools` (0.6.2+), also build `cppmodel-tool` with the same
-toolchain, as `cppmodel:simulations` describes. The query, inputs, and sweep skills all need it.
-The tool and the SDK write a `.cppmodeltoken` login cache into the directory they run from, so
-make sure the project's `.gitignore` covers `.cppmodeltoken` along with `.env`.
+Querying results and posting inputs go through the plugin's `cppmodel` MCP server, which needs no
+local build; mention that the user authenticates it once with `/mcp`. Only parameter sweeps need
+the SDK's `cppmodel-tool`, and `cppmodel:parameter-sweep` builds it when first needed.
+The SDK writes a `.cppmodeltoken` login cache into the directory a simulation runs from, so make
+sure the project's `.gitignore` covers `.cppmodeltoken` along with `.env`.
 
 ## Report
 

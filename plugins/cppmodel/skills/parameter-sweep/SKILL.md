@@ -23,18 +23,48 @@ just repeat the default run. If a document was already pending before the sweep 
 tool saves it and re-posts it at the end, including after an error or Ctrl-C. Posts made during
 the sweep are all consumed, so nothing else is left behind.
 
-The sweep is a command of the SDK's `cppmodel-tool`, the same program `cppmodel:simulations` uses
-("The tool" there covers finding and building it). `sweep` exists from SDK 0.6.3 on:
-`cppmodel-tool --help` lists it. If the available build doesn't, rebuild the tool from a 0.6.3+
-SDK, following step 3 of "The tool" if the project's own SDK is older. Don't reimplement any of
-this by hand:
+The sweep is a command of `cppmodel-tool`, which ships as source with the CppModel SDK in
+`<sdk>/share/cppmodel/tools`. `sweep` exists from SDK 0.6.3 on; `cppmodel-tool --help` lists what
+a build has. (Everything else - querying results, posting one document - goes through the
+`cppmodel` MCP server; see `cppmodel:simulations`.) Find or build the tool once per project, in
+this order:
+
+1. **Already built**: `build/cppmodel-tool/cppmodel-tool` (`.exe` on Windows; under
+   `build/cppmodel-tool/Release/` with a multi-config generator such as Visual Studio), or
+   `cppmodel-tool` on `PATH`, and its `--help` lists `sweep`. Use it.
+2. **The project's SDK has the source** (`dependencies/share/cppmodel/tools`, 0.6.3+). Build it
+   with the same toolchain as the project (on Windows with MSYS2, from that environment's shell):
+
+   ```
+   cmake -S dependencies/share/cppmodel/tools -B build/cppmodel-tool
+   cmake --build build/cppmodel-tool
+   ```
+
+3. **The project's SDK is older than 0.6.3.** The tool only talks to the API and runs the binary,
+   so it doesn't have to match the project's SDK version. Either offer
+   `cppmodel:update-dependencies`, or build it from a separately downloaded current SDK without
+   touching the project's `dependencies/`:
+
+   ```
+   DEPS_DIR=<scratch>/cppmodel-sdk COMPILER=<gcc12|...> bash "${CLAUDE_PLUGIN_ROOT}/scripts/templates/install-cppmodel.sh"
+   cmake -S <scratch>/cppmodel-sdk/share/cppmodel/tools -B <scratch>/cppmodel-tool
+   cmake --build <scratch>/cppmodel-tool
+   ```
+
+   (Windows: `install-cppmodel.ps1 -DepsDir ... -Platform ...`; see `cppmodel:setup-environment`
+   for choosing the compiler.)
+
+If the tool can't be built, say why and stop. Don't reimplement any of this by hand, e.g. as a
+loop of `set_inputs` calls and runs:
 
 ```
 cppmodel-tool sweep <plan.json> <out-dir> [--dry-run] [--timeout <seconds>] [--workspace <id>] [--env <file>]
 ```
 
-Run it from the project root, where `.env` is. The tool uses the nearest `.env`, and treats that
-file's folder as the project root.
+Run it from the project root, where `.env` is. The tool uses the nearest `.env` for its own login
+(not the MCP server's), and treats that file's folder as the project root. It picks the workspace
+from the login; pass `--workspace <id>`, or set `CPPMODEL_WORKSPACE` in `.env`, only if it says
+the account belongs to more than one.
 
 ## 1. Preconditions
 
@@ -178,7 +208,8 @@ run's `exitCode` is platform-dependent (255 on Linux/macOS, -1 on Windows), so g
   before drawing any chart.
 
 Point the user at the web UI for any run they want to inspect:
-`https://<workspace>.cppmodel.com/simulations/<name>`, with the execution id from the summary.
+`<uiUrl>/simulations/<name>` (`get_workspace` gives `uiUrl`), with the execution id from the
+summary.
 
 ## 7. Follow-ups worth offering
 
@@ -187,8 +218,8 @@ Point the user at the web UI for any run they want to inspect:
   step to the simulation that sets those conditions in code (`cppmodel:simulation-testing`).
   Posted documents are one-shot, so a scenario that isn't in the repo isn't part of the test
   suite.
-- **To find out why a combination fails**, fetch its execution by id
-  (`cppmodel-tool fetch execution "<name>" <executionId>`). Then follow
+- **To find out why a combination fails**, fetch its execution by id with the MCP server's
+  `get_execution` (or read `results/NNN.json`). Then follow
   `cppmodel:simulation-testing`'s "Debugging a failure" section.
 - **Re-run a saved plan after code changes** to confirm the boundary moved the right way.
 

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cppmodel": {
+      "type": "http",
+      "url": "https://mcp.cppmodel.com/mcp"
+    }
+  }
+}
