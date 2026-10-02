@@ -2,7 +2,11 @@
   "mcpServers": {
     "cppmodel": {
       "type": "http",
-      "url": "https://mcp.cppmodel.com/mcp"
+      "url": "https://mcp.cppmodel.com/mcp",
+      "oauth": {
+        "clientId": "cppmodel-mcp",
+        "callbackPort": 9199
+      }
     }
   }
 }
