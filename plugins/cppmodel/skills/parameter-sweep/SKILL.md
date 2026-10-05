@@ -221,7 +221,9 @@ summary.
 - **To find out why a combination fails**, fetch its execution by id with the MCP server's
   `get_execution` (or read `results/NNN.json`). Then follow
   `cppmodel:simulation-testing`'s "Debugging a failure" section.
-- **Re-run a saved plan after code changes** to confirm the boundary moved the right way.
+- **Re-run a saved plan after code changes** to confirm the boundary moved the right way. Every
+  run of both sweeps stays in the execution history, so compare the new sweep against the old one
+  by the execution ids in each `summary.json` (`get_execution`), not by re-running the old code.
 
 Finish with where the plan and results are, and whether a previously pending document was
 re-posted.

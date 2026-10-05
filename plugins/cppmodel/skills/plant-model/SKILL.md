@@ -280,3 +280,7 @@ test scenarios and assertions, build, and run it; that skill in turn hands off t
 `cppmodel:simulations` to fetch results through the `cppmodel` MCP server. Don't stop
 after scaffolding the model and call the task done - a customer asking to "simulate X" wants it
 built, tested, run, and its results checked, not just the model file.
+
+If the model stands for a real machine whose behaviour will later be checked against field logs,
+also offer `cppmodel:experiment-design` once it runs: a plan for collecting those logs, aimed at
+what this first model is least sure of, with the model's predicted trace for every run.

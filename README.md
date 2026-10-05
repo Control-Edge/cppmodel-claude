@@ -1,6 +1,6 @@
 # CppModel Tools
 
-A Claude Code plugin for projects using the CppModel libraries. Ten skills:
+A Claude Code plugin for projects using the CppModel libraries. Twelve skills:
 
 - **`cppmodel:decouple-component`** - decouple a vendor-coupled controller component (one that
   calls a vendor BSW/RTOS/HAL API directly) so it can run in isolation under CppModel.
@@ -22,6 +22,17 @@ A Claude Code plugin for projects using the CppModel libraries. Ten skills:
   input profiles with `cppmodel-tool sweep` (SDK 0.6.3+), verifying after every run that the
   posted values were applied, then reports the
   pass/fail map, where the boundary lies, and the metrics you care about.
+- **`cppmodel:experiment-design`** - designs a field data-collection plan for a real machine,
+  aimed at the behaviour the plant model is least sure of. Every run carries the trace the current
+  model predicts, computed by a `planned-<plan-id>` simulation that stays out of `ctest`/CI until
+  the plan proves realistic or the customer adopts it. Shows the machine/model understanding and
+  the predicted graphs in a widget to confirm or correct, then issues a frozen `plan.json` (format:
+  `skills/experiment-design/plan-format.md`) for the operator to follow.
+- **`cppmodel:experiment-reconcile`** - takes the field logs back from a plan: identifies each
+  planned run in the unannotated logs, infers what was actually done against what was asked,
+  re-simulates what was actually done, and shows predicted vs actual on the same plots against the
+  plan's tolerances. Then proposes a minimal plant-model refinement on the planned path, checks it
+  against the same logs, and recommends promoting, planning again, or re-tuning the controller.
 - **`cppmodel:language`** - decides C vs C++ for a new plant model or simulation file: checks a
   stored per-project preference (`.claude/cppmodel.local.json`) first, otherwise detects the
   project's existing convention or asks, and can remember the answer so it isn't asked again. Used
@@ -84,6 +95,10 @@ one from your login automatically, and every skill works the same with either.
   to report OS, compilers, tools, libraries, and the currently published SDK builds
 - `plugins/cppmodel/skills/simulation-inputs/SKILL.md` - the inputs/parameters skill
 - `plugins/cppmodel/skills/parameter-sweep/SKILL.md` - the sweep skill
+- `plugins/cppmodel/skills/experiment-design/SKILL.md` - the field experiment-plan skill, with
+  `plan-format.md`, the plan format reconciliation reads
+- `plugins/cppmodel/skills/experiment-reconcile/SKILL.md` - the field-log reconciliation skill,
+  with `reconciliation-format.md`, the format of its findings
 - `plugins/cppmodel/scripts/templates/install-cppmodel.sh` / `.ps1` - templates that detect
   platform/compiler and fetch the CppModel SDK into `dependencies/`. The `cppmodel:ci-pipeline`
   and `cppmodel:update-dependencies` skills copy them into a project; `cppmodel:setup-environment`

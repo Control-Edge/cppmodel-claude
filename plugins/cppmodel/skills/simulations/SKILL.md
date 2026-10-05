@@ -1,6 +1,6 @@
 ---
 name: cppmodel:simulations
-description: Query CppModel Workspace API results - list simulations, fetch the latest results for one, or list its execution history. Use when asked about CppModel simulation results, executions, or the Workspace API, in a project that uses the CppModel libraries.
+description: Query CppModel Workspace API results - list simulations, fetch the latest results for one, list its execution history, or compare executions with each other. Every simulation run is submitted to the workspace, and its execution history is how runs are compared. Use when asked about CppModel simulation results, executions, how a run compares with an earlier one, or the Workspace API, in a project that uses the CppModel libraries.
 ---
 
 ## The tools: the `cppmodel` MCP server
@@ -43,6 +43,31 @@ the document was applied.
 `delete_simulation` removes the simulation with its entire execution history and any pending
 document, the same as deleting it in the UI. It can't be undone and affects everyone who uses that
 simulation, so only call it when the user explicitly asks, after telling them what will be lost.
+
+## The workspace is part of the loop
+
+Every simulation run is submitted to the workspace, and its execution history is the record of the
+work: each execution keeps the inputs and parameters it read and every output series, retrievable
+by id later. So:
+
+- **Always run online.** Never set `CPPMODEL_OFFLINE`, never pass `runOffline`, and never run
+  offline to save time or avoid the API. A run whose output says `Could not reach API. Running
+  offline.` produced nothing anyone can look at or compare later. Treat it as a run that didn't
+  happen: fix the cause (`.env`, network, login) and run again.
+- **Compare runs through the history.** Before vs after a change, one scenario against another, a
+  sweep against an earlier sweep: `list_executions` finds them, `get_execution` fetches each by id,
+  with `signals` for just the series being compared. Don't rebuild an old version to regenerate
+  results the history already holds. Don't write scripts, extra tests, or extra printf/logging to
+  collect data an execution already recorded.
+- **Look before running.** If the question is "what did the simulation do when...", check the
+  history first. Run again only when no execution covers it (different code, inputs, or
+  parameters).
+- **Keep simulation names stable.** The history is per name. A renamed simulation starts with an
+  empty history and can't be compared with the old one by id, so rename only on purpose and say
+  that this is the consequence.
+- **Name executions when reporting.** When reporting a result, give its execution id (and the UI
+  link: `<uiUrl>/simulations/<name>`), so the user and later sessions can find exactly that run.
+- **History isn't clutter.** Never delete a simulation to tidy up (see `delete_simulation` above).
 
 ## Workspaces
 

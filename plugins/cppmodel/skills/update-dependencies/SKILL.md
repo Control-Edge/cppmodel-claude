@@ -162,6 +162,12 @@ cmake --build build --target all
 set -a && source .env && set +a && cd build && ctest --output-on-failure
 ```
 
+Passing isn't the only check. Every simulation's history already holds its executions from before
+the update, so for each one compare the new execution with the last one before the swap
+(`list_executions`, then `get_execution` for both with the same `signals`; see
+`cppmodel:simulations`' "The workspace is part of the loop"). Outputs that changed with no input or
+code change in between are a behaviour change in the SDK; report them even if every test passed.
+
 If the build or tests fail after the best-effort fix, don't report success - state exactly what
 failed, leave the backup in place, and ask before attempting further changes. Once the build and
 tests pass, it's safe to remove the backup.

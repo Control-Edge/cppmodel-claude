@@ -132,6 +132,11 @@ Exit code 0 means every cycle's `StepResult` was 1. Nonzero means at least one c
 the binary itself gives no detail about which one - it only prints a
 `UI: https://<workspace>.cppmodel.com/simulations/<SimulationName>` line.
 
+Every run is submitted to the workspace and stays in the simulation's execution history - see
+`cppmodel:simulations`' "The workspace is part of the loop". Never run offline
+(`CPPMODEL_OFFLINE`, `runOffline`); a run that prints `Running offline.` didn't count, so fix the
+cause and rerun.
+
 If this simulation isn't yet wired into `ctest`, register it in the relevant `CMakeLists.txt`:
 
 ```
@@ -166,6 +171,10 @@ Workflow:
    wrong, or the code under test has a real bug.
 4. Fix, rebuild, rerun, re-fetch, and confirm the trace is clean end to end (`StepResult` never
    dips to 0 anywhere) - not just that the process exit code was 0.
+5. Compare the new execution with the failing one through the history (`list_executions`, then
+   `get_execution` for both ids with the same `signals`), so the fix is shown to change what it
+   was meant to change and nothing else. Don't add a temporary test or extra outputs to collect
+   what the two executions already recorded.
 
 If the trace's `inputs`/`parameters` show values other than the source's fallbacks, this run
 consumed a document posted through the API or the web UI. Posted documents are one-shot: they

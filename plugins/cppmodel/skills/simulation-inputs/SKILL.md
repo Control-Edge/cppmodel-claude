@@ -167,6 +167,11 @@ Once the values are confirmed, report:
 - pass/fail: whether `CppModel.StepResult` in `results` ever dropped to 0. The exit code is 0
   for a pass and nonzero for a fail (255 on Linux/macOS, -1 on Windows).
 - what the scenario showed in the outputs the user cares about
+- the execution id, so this run can be found and compared later
+
+To compare the scenario with the default run or an earlier scenario, fetch both executions by id
+with `get_execution` (see `cppmodel:simulations`' "The workspace is part of the loop"), instead of
+rerunning the other one.
 
 If the run failed and the reason isn't obvious, continue with `cppmodel:simulation-testing`'s
 "Debugging a failure" section.

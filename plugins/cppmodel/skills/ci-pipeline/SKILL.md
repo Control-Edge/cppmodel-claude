@@ -187,6 +187,10 @@ secrets/variables, never literal values in the config:
 - Bitbucket: same direct `$CPPMODEL_USERNAME` reference, added as a (Secured) repository or
   workspace variable under Settings > Repository variables.
 
+Never set `CPPMODEL_OFFLINE` in CI. CI runs are submitted to the workspace like any other, and
+their executions are the history later runs are compared against (see `cppmodel:simulations`' "The
+workspace is part of the loop").
+
 Let `ctest`'s own nonzero exit code fail the job everywhere - don't wrap it in something that
 swallows the exit code.
 
