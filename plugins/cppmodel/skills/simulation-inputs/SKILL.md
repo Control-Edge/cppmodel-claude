@@ -21,8 +21,10 @@ Before the simulation binary starts, you can post a document with values for the
 `cppmodel` MCP server's `set_inputs` tool. Four facts, all confirmed against the live API, shape
 everything below:
 
-1. **The document is one-shot.** The next execution consumes it; afterwards `get_pending_inputs`
-   finds nothing until something is posted again. Post right before each run.
+1. **The document is one-shot and per account.** The account's next execution of the simulation
+   consumes it; afterwards `get_pending_inputs` finds nothing until something is posted again.
+   Other users' runs neither read nor consume it, but every run on the same account does (`ctest`,
+   CI with the same login, the web UI). Post right before each run.
 2. **A name that isn't posted silently uses the fallback** in the code. A misspelled name looks
    like a normal run with default values.
 3. **Every execution records the values it ran with.** Its `inputs` and `parameters` hold every
@@ -87,8 +89,8 @@ authoring anything.
 ## 2. Check nothing is already pending
 
 Call `get_pending_inputs`. The normal answer is that nothing is pending. If a document comes back,
-someone (the web UI, a teammate, an interrupted run) posted it for the next execution and it hasn't
-been consumed. Save it to a scratch file and show it to the user before replacing it, since posting
+something on this account (the web UI, an interrupted run or sweep, another session) posted it for
+the next execution and it hasn't been consumed. Save it to a scratch file and show it to the user before replacing it, since posting
 overwrites it.
 
 ## 3. Author and validate the document
@@ -116,6 +118,8 @@ Parameters:
   `CMODEL_SIMULATE(...)`/`CppModel_create(...)`, which take milliseconds. Keep them as recorded.
   Don't use them to change the run length unless a run confirms the binary honours them: check
   that the recorded time axis actually changed.
+- `CppModel.BinaryFingerprint`, copied along with a record's parameters, is left out by
+  `set_inputs` with a warning: each binary records its own. That warning is expected.
 
 Check the document before posting:
 
@@ -150,7 +154,10 @@ Say so and stop.
 ## 5. Confirm the values were applied, then report
 
 Fetch the execution record with `get_latest_result` (pass `signals` to limit it to the series
-you posted and the outputs you need). Compare its `parameters` and `inputs` with what you posted:
+you posted and the outputs you need). On a simulation others run too, make sure it's your run:
+with SDK 0.7.0+, its `CppModel.BinaryFingerprint` is your binary's (`cppmodel-tool fetch
+fingerprint <binary>`, if the tool is built, prints it), and `get_binary_runs` with that
+fingerprint fetches your run by index. Compare its `parameters` and `inputs` with what you posted:
 
 - **Posted parameters** should appear with the posted value.
 - **Posted input series** should match when read with the hold rule. The recorded series are
@@ -167,7 +174,8 @@ Once the values are confirmed, report:
 - pass/fail: whether `CppModel.StepResult` in `results` ever dropped to 0. The exit code is 0
   for a pass and nonzero for a fail (255 on Linux/macOS, -1 on Windows).
 - what the scenario showed in the outputs the user cares about
-- the execution id, so this run can be found and compared later
+- the execution id (from `list_executions`) or the run's fingerprint and index, so this run can
+  be found and compared later
 
 To compare the scenario with the default run or an earlier scenario, fetch both executions by id
 with `get_execution` (see `cppmodel:simulations`' "The workspace is part of the loop"), instead of
@@ -179,8 +187,8 @@ If the run failed and the reason isn't obvious, continue with `cppmodel:simulati
 ## 6. Afterwards
 
 The document was consumed, so nothing needs restoring and later runs (`ctest`, CI) are unaffected.
-To run the same scenario again, post the saved file again before the run. If step 2 found someone
-else's pending document that you replaced, tell the user it's gone, and offer to re-post the copy
+To run the same scenario again, post the saved file again before the run. If step 2 found a pending
+document that you replaced, tell the user it's gone, and offer to re-post the copy
 saved in step 2.
 
 ## Starting over: deleting a simulation's data

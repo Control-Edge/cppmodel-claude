@@ -29,12 +29,15 @@ Show what you inferred and let the user correct it (step 5).
   If several plans have logs, ask which one.
 - **The logs are present** in `experiments/<plan-id>/logs/` (or wherever the user put them; move
   nothing without asking).
-- **The model version.** Rebuild the planned simulation's binary and compare its fingerprint (or
-  git commit) with the plan's `model`. If they differ, the model has changed since the plan was
+- **The model version.** Rebuild the planned simulation's binary and compare its
+  `CppModel.BinaryFingerprint` (`cppmodel-tool fetch fingerprint <binary>`, or the record of a run
+  of it) or git commit with the plan's `model`. If they differ, the model has changed since the plan was
   issued. Comparisons in step 4 still go against the plan's model, because that was the hypothesis
   the field session tested: check out or keep a build of that version for the as-run simulations,
-  and tell the user. The planned predictions themselves are never regenerated: fetch them by the
-  plan's `prediction.executionId` with `get_execution`. A newer model is evaluated in step 6 as a refinement.
+  and tell the user. The planned predictions themselves are never regenerated: fetch them with
+  `get_binary_runs` (the plan's `model.binaryFingerprint`, `start` = `prediction.index`), or by
+  `prediction.executionId` with `get_execution` for a plan without a fingerprint. A newer model
+  is evaluated in step 6 as a refinement.
 - **Running anything** needs `.env` (`CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD`) and the `cppmodel`
   MCP server authenticated (see `cppmodel:simulations`). If either is missing, say so and stop.
 
@@ -165,10 +168,10 @@ what the logs show and nothing more. Get the user's OK before writing it.
   constant) from part of the attempts, typically one of each repeat, and judge the variant on the
   rest. A variant that only matches the data it was tuned on hasn't shown anything.
 - **Re-run the as-run simulations with the variant** (same inputs, `cppmodel:parameter-sweep`).
-  The "before" runs are already in the history, so only the variant runs. Compare by execution id
-  as in step 4, and add the result to `reconciliation.json` and the page as a third trace:
+  The "before" runs are already in the history, so only the variant runs. Compare by fingerprint
+  and index (or execution id) as in step 4, and add the result to `reconciliation.json` and the page as a third trace:
   "before" vs "after" vs actual.
-- Record the variant's fingerprint or commit, since it is a different model.
+- Record the variant's `CppModel.BinaryFingerprint` or commit, since it is a different model.
 
 ## 7. Close the loop
 

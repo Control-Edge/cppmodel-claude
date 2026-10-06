@@ -12,7 +12,8 @@ A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
   guessing from stdout.
 - **`cppmodel:simulations`** - query the Workspace API through the plugin's `cppmodel` MCP server
   (`mcp.cppmodel.com`): list your simulations, fetch a simulation's latest results, list its
-  execution history, or fetch one past execution.
+  execution history, fetch one past execution, or fetch all the runs of one build (e.g. a whole
+  sweep) by its `CppModel.BinaryFingerprint`.
 - **`cppmodel:simulation-inputs`** - run a simulation with specific inputs (time series) and
   parameters (constants) posted through the Workspace API, without editing or rebuilding it. Finds
   the exact names the simulation reads, validates and posts the document right before the run (the

@@ -18,6 +18,11 @@ So a sweep is sequential. For each combination, `cppmodel-tool sweep`:
 3. fetches exactly the execution that run created;
 4. **checks the recorded values against the posted ones.**
 
+From SDK 0.7.0 it finds each run's execution by the binary's `CppModel.BinaryFingerprint` (the
+next index under it; see `cppmodel:simulations`' "Runs of one build"), so other builds' executions
+of the same simulation can't be mistaken for it, and it stops if the binary is rebuilt mid-sweep.
+With a binary from an older SDK it falls back to the simulation's newest execution.
+
 If a run didn't use what was posted, the sweep stops immediately, because every further run would
 just repeat the default run. If a document was already pending before the sweep started, the
 tool saves it and re-posts it at the end, including after an error or Ctrl-C. Posts made during
@@ -72,10 +77,11 @@ the account belongs to more than one.
   "Requirements"). If they're missing, stop and say so.
 - The simulation binary is **built and up to date**. Build it as `cppmodel:simulation-testing`
   describes; the sweep doesn't build it.
-- **Nothing else runs this simulation during the sweep**: no `ctest`, no CI job on the same
-  account, no second sweep, no one pressing run in the web UI. Any of them would consume a posted
-  document meant for a sweep run. The sweep then catches the mismatch and stops, but it's
-  wasted. Say this to the user before starting.
+- **Nothing else runs this simulation on the same account during the sweep**: no `ctest`, no CI
+  job with the same login, no second sweep, no run started from the web UI. Any of them would
+  consume a posted document meant for a sweep run (other users' runs don't). The sweep then
+  catches the mismatch and stops, but it's wasted. Don't rebuild the binary during the sweep
+  either. Say this to the user before starting.
 
 ## 2. Find the names
 
@@ -189,8 +195,9 @@ Report the reason from the output. Don't re-run blindly.
 
 ## 6. Analyse the results
 
-`<out>/summary.json` has one row per verified run: its values, `exitCode`, `passed`,
-`executionId`, `applied`, `results` (the execution record from the API) and `log`. A failing
+`<out>/summary.json` has one row per verified run: its values, `exitCode`, `passed`, where its
+execution is (`fingerprint` and `index`, or `executionId` after the pre-0.7.0 fallback),
+`applied`, `results` (the path of the execution record from the API) and `log`. A failing
 run's `exitCode` is platform-dependent (255 on Linux/macOS, -1 on Windows), so go by `passed`.
 
 - **Pass/fail map first.** Show a table with one row per run, or a 2-D grid when two things were
@@ -201,15 +208,18 @@ run's `exitCode` is platform-dependent (255 on Linux/macOS, -1 on Windows), so g
   change-compressed (`x` = the times the value changed, plus the end), so read them with
   hold-last-value. Compute the metrics agreed in step 3 from these files; a short one-off
   computation over them is fine. They are the API's own data. Never search the project for other
-  result files, or re-derive values some other way.
+  result files, or re-derive values some other way. Once the output directory is gone (or for a
+  sweep from an earlier session), `get_binary_runs` with the summary's `fingerprint` and the first
+  run's `index` as `start` returns the runs again in order, up to 50 per call, with `passed`; use
+  `summary`/`signals` to keep it small.
 - **Refine where it matters.** If the boundary falls between two values, offer a second, finer
   sweep between them rather than guessing where it is.
 - For a visual comparison, offer to plot the key signal across runs. Load the `dataviz` skill
   before drawing any chart.
 
 Point the user at the web UI for any run they want to inspect:
-`<uiUrl>/simulations/<name>` (`get_workspace` gives `uiUrl`), with the execution id from the
-summary.
+`<uiUrl>/simulations/<name>` (`get_workspace` gives `uiUrl`), with the run's fingerprint and index
+(or execution id) from the summary.
 
 ## 7. Follow-ups worth offering
 
@@ -218,12 +228,14 @@ summary.
   step to the simulation that sets those conditions in code (`cppmodel:simulation-testing`).
   Posted documents are one-shot, so a scenario that isn't in the repo isn't part of the test
   suite.
-- **To find out why a combination fails**, fetch its execution by id with the MCP server's
-  `get_execution` (or read `results/NNN.json`). Then follow
+- **To find out why a combination fails**, fetch its execution with the MCP server's
+  `get_binary_runs` (`start` = its index, `count: 1`) or `get_execution` after the fallback (or
+  read `results/NNN.json`). Then follow
   `cppmodel:simulation-testing`'s "Debugging a failure" section.
 - **Re-run a saved plan after code changes** to confirm the boundary moved the right way. Every
   run of both sweeps stays in the execution history, so compare the new sweep against the old one
-  by the execution ids in each `summary.json` (`get_execution`), not by re-running the old code.
+  by the fingerprint and indices in each `summary.json` (`get_binary_runs`; the rebuilt binary has
+  a new fingerprint), not by re-running the old code.
 
 Finish with where the plan and results are, and whether a previously pending document was
 re-posted.

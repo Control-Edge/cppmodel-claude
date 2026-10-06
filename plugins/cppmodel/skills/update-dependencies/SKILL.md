@@ -167,6 +167,8 @@ the update, so for each one compare the new execution with the last one before t
 (`list_executions`, then `get_execution` for both with the same `signals`; see
 `cppmodel:simulations`' "The workspace is part of the loop"). Outputs that changed with no input or
 code change in between are a behaviour change in the SDK; report them even if every test passed.
+A new or changed `CppModel.BinaryFingerprint` parameter is expected (the binary was rebuilt; SDK
+0.7.0 started recording it) and isn't one.
 
 If the build or tests fail after the best-effort fix, don't report success - state exactly what
 failed, leave the backup in place, and ask before attempting further changes. Once the build and

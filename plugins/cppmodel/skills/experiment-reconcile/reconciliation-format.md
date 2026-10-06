@@ -14,7 +14,7 @@ the same file updated, with `revision` incremented.
   "revision": 1,
   "created": "2026-10-09",
 
-  "planModel": { "sourceFingerprint": "9f2c...e1", "gitCommit": "d1d3d88", "rebuiltMatches": true },
+  "planModel": { "binaryFingerprint": 4510872319245113, "gitCommit": "d1d3d88", "rebuiltMatches": true },
 
   "logs": [
     { "file": "logs/boom3_2026-10-08.mf4", "sha256": "77b0...", "format": "MDF4",
@@ -51,7 +51,7 @@ the same file updated, with `revision` incremented.
           "deviations": ["Outreach 7.1 m of 8.2 m planned", "Lift aborted after 6 s of a 10 s hold"],
           "alignment": "Lift command onset at 1180.4 s in the log = 0 ms",
           "asRun": {
-            "executionId": "6711...",
+            "binaryFingerprint": 4510872319245113, "index": 7,
             "simulation": { "inputs": [], "parameters": { "Load [kg]": 1200, "Target Outreach [m]": 7.1 } }
           },
           "comparison": {
@@ -76,11 +76,11 @@ the same file updated, with `revision` incremented.
       "id": "v1",
       "description": "Relief pressure limit 205 bar on the lift cylinder",
       "files": ["experiments/2026-10-05-boom3-lift-at-reach/BoomModel.h"],
-      "sourceFingerprint": "c41d...9a",
+      "binaryFingerprint": 7731904416207885,
       "fittedOn": ["s05"],
       "checkedOn": ["s06", "s08"],
       "results": [
-        { "segment": "s06", "executionId": "6720...",
+        { "segment": "s06", "index": 1,
           "comparison": { "p_lift": { "withinTolerance": 0.97, "maxError": 6.2 } }, "verdict": "agrees" }
       ]
     }
@@ -107,14 +107,15 @@ the same file updated, with `revision` incremented.
   - `status`: `done` (as planned), `deviated`, `partial`, or `skipped`.
   - `attempts[]`: one per matched segment. `achieved` holds the setpoints actually reached, each
     marked `inferred` when it wasn't logged directly. `asRun` is the simulation of what was
-    actually done, in `set_inputs` format, with its execution id. It's `null` when the operator
-    side wasn't logged, and `comparison[].against` is then `"planned"`.
+    actually done, in `set_inputs` format, with where its execution is: `binaryFingerprint` and
+    `index` (`get_binary_runs`), or `executionId` with an SDK before 0.7.0. It's `null` when the
+    operator side wasn't logged, and `comparison[].against` is then `"planned"`.
   - `comparison`: per channel. `withinTolerance` is a fraction of the attempt's time, and errors
     are in the channel's unit.
   - `verdict`: `agrees`, `disagrees`, or `inconclusive`. `hypothesis`: `supported`, `refuted`, or
     `inconclusive`, with `hypothesisNote` in the plan's own terms.
   - `repeatSpread`: per channel, the spread between repeats, to judge misses against.
 - `refinements`: trial model variants on the planned path. Each records its files, its
-  fingerprint, the segments it was fitted on and those it was checked on, and the as-run results
+  `binaryFingerprint` (each result's `index` is under it), the segments it was fitted on and those it was checked on, and the as-run results
   with it. Judge a variant only on its `checkedOn` segments.
 - `nextStep.proposal`: `promote`, `plan-again`, or `retune-controller`.

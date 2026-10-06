@@ -57,7 +57,8 @@ other. It's kept apart from the production simulations, the ones the customer re
 | Plant model | references the production model; a hypothesis that needs a changed model goes in a copy under `experiments/<plan-id>/` | never edited from here |
 
 Keeping it out of `ctest`/CI matters for more than tidiness: step 4 runs it through posted inputs,
-and any other execution of the same simulation would consume a posted document.
+and any other execution of the same simulation on the same account would consume a posted
+document.
 
 Check whether the project already has an `experiments/` (or similar) convention and follow it. Ask
 before creating the folder the first time, and ask whether returned logs belong in git (they can be
@@ -160,15 +161,16 @@ is authenticated. If either is missing, say so and stop.
 2. **Run one execution per run** with `cppmodel:parameter-sweep`, using an explicit `runs` list:
    one sweep run per plan run, with that run's inputs and parameters. The sweep verifies every run
    used what was posted. Each prediction is an execution in the workspace history, which the plan
-   references by id, so reconciliation and later plans fetch it from there instead of regenerating
-   it.
-3. **Record the model version.** If the build writes a `<binary>.fingerprint` side file (the SDK's
-   `cppmodel-fingerprint` post-build step), copy its `fingerprint` and `toolchainFingerprint` into
-   the plan. Otherwise record the git commit and whether the tree was dirty, and tell the user the
-   predictions are tied to the model less strictly.
+   references by the sweep's `fingerprint` and `index` (or execution id with an SDK before 0.7.0),
+   so reconciliation and later plans fetch it from there (`get_binary_runs`) instead of
+   regenerating it.
+3. **Record the model version.** Copy the binary's `CppModel.BinaryFingerprint` (SDK 0.7.0+; the
+   sweep summary's `fingerprint`) into the plan, together with the git commit and whether the tree
+   was dirty. With an older SDK there's no fingerprint: tell the user the predictions are tied to
+   the model only by the commit.
 4. **Copy each prediction into the plan.** From each run's execution record, take every logged
    channel's series, resample it with hold-last-value onto that channel's planned log rate, and
-   store it in the run's `prediction`, with the execution id. See
+   store it in the run's `prediction`, with its index (or execution id). See
    [plan-format.md](plan-format.md).
 
 A run that fails in simulation (`CppModel.StepResult` drops to 0, or the model stalls) is a

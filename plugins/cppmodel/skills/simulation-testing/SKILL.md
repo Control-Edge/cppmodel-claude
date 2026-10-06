@@ -183,8 +183,8 @@ Workflow:
 
 If the trace's `inputs`/`parameters` show values other than the source's fallbacks, this run
 consumed a document posted through the API or the web UI. Posted documents are one-shot: they
-affect only the next execution, whichever one that is, such as a `ctest` run or a CI job that
-happened to start first. See `cppmodel:simulation-inputs`.
+affect only the account's next execution, whichever one that is, such as a `ctest` run or a CI
+job with the same login that happened to start first. See `cppmodel:simulation-inputs`.
 
 One recurring, easy-to-miss failure mode: a state field and an output that its new state is
 supposed to set can be one cycle out of sync - the state has already transitioned, but the case

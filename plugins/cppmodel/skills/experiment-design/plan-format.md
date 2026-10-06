@@ -36,8 +36,7 @@ conversation that produced it.
     "binary": "build/experiments/BoomPlanned",
     "plantModel": ["models/BoomModel.h"],
     "controller": ["src/BoomControl.c"],
-    "sourceFingerprint": "9f2c...e1",
-    "toolchainFingerprint": "41ab...07",
+    "binaryFingerprint": 4510872319245113,
     "gitCommit": "d1d3d88",
     "gitDirty": false,
     "knownLimitations": ["No hydraulic dynamics", "Rigid boom"]
@@ -73,7 +72,8 @@ conversation that produced it.
         "parameters": { "Load [kg]": 500, "Target Outreach [m]": 5.0 }
       },
       "prediction": {
-        "executionId": "6702...",
+        "index": 0,
+        "executionId": null,
         "passed": true,
         "traces": [
           { "channel": "p_lift", "x": [0, 10, 20], "y": [12.0, 12.4, 13.1] }
@@ -104,9 +104,9 @@ was issued. `topic` is `machine`, `model`, `suspect`, or `logging`. `source` is 
 statement came from (`code`, `drawing`, `log`, `user`, `assumed`); a statement the user confirmed
 or corrected has `source: "user"`. `confidence` is `high`, `medium`, or `low`.
 
-**`model`**: what the predictions were computed with. `sourceFingerprint`/`toolchainFingerprint`
-are copied from the binary's `.fingerprint` side file when the build writes one, and are `null`
-otherwise. `gitCommit`/`gitDirty` are always recorded. Reconciliation compares only against
+**`model`**: what the predictions were computed with. `binaryFingerprint` is the planned binary's
+`CppModel.BinaryFingerprint` (SDK 0.7.0+), `null` with an older SDK. `gitCommit`/`gitDirty` are
+always recorded. Reconciliation compares only against
 predictions from this exact model; a refined model means new predictions.
 
 **`channels`**: every signal compared between simulation and field, defined once and referred to
@@ -133,7 +133,10 @@ by `id` from the runs.
 - `hypothesis`: what the model predicts and what each kind of miss would mean.
 - `simulation`: exactly the `inputs`/`parameters` posted for this run's planned execution, in
   `set_inputs` format (input `x` in ms).
-- `prediction.executionId`: the planned execution the traces came from. `passed` is its pass/fail.
+- `prediction.index`: the planned execution the traces came from, as its run index under
+  `model.binaryFingerprint` (`get_binary_runs`). `prediction.executionId` is set instead, and
+  `index` is `null`, only when there's no fingerprint (SDK before 0.7.0). `passed` is its
+  pass/fail.
 - `prediction.traces`: one per channel in `channels`, inline (the widget draws from them). `x` is
   in ms from the start of the run, `y` in the channel's unit, sampled at the channel's `rateHz`
   with hold-last-value from the execution record.
