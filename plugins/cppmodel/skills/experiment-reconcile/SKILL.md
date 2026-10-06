@@ -185,3 +185,8 @@ Set the plan's `status` to `reconciled`. Then, from the evidence, propose one of
 
 Finish with where `reconciliation.json`, the page, and any model variant are, the plan's new
 status, and which next step you propose.
+
+When a refinement is promoted, the model's document (if one exists) is out of date. Offer to
+update it with `cppmodel:documentation`: the new update law or constant, where its value came from
+(the attempts it was fitted on), and the field validation. If no document exists, offer to write
+one.

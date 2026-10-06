@@ -146,6 +146,11 @@ add_test(NAME <SimulationName>Test COMMAND <SimulationName>)
 Do this when the simulation is created, not after - an unregistered simulation can be built and
 even run manually indefinitely without ever actually gating anything.
 
+When a **new** simulation passes and the user isn't still changing the plant or controller, offer,
+in one line, to finalize their documentation with `cppmodel:documentation`. That means reshaping
+the draft to match the code, or writing the document if there is no draft. Don't offer it after
+debugging or tuning. Those changes don't need documentation until the solution is settled.
+
 ## Debugging a failure: query the real trace, don't guess
 
 The binary's stdout gives nothing to work with beyond pass/fail and a `UI: https://...` link -

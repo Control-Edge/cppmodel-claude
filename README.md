@@ -1,6 +1,6 @@
 # CppModel Tools
 
-A Claude Code plugin for projects using the CppModel libraries. Twelve skills:
+A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
 
 - **`cppmodel:decouple-component`** - decouple a vendor-coupled controller component (one that
   calls a vendor BSW/RTOS/HAL API directly) so it can run in isolation under CppModel.
@@ -33,6 +33,13 @@ A Claude Code plugin for projects using the CppModel libraries. Twelve skills:
   re-simulates what was actually done, and shows predicted vs actual on the same plots against the
   plan's tolerances. Then proposes a minimal plant-model refinement on the planned path, checks it
   against the same logs, and recommends promoting, planning again, or re-tuning the controller.
+- **`cppmodel:documentation`** - a short Markdown document (one to two screens) for a plant model
+  and its controller: interface table, per-cycle update laws in TeX math (`$...$`/`$$...$$`),
+  parameters, the controller's state machine (Mermaid), the simplifications made and why, and
+  validation results from the workspace. It starts as a draft from your own initial description,
+  is left alone while the solution changes, and is reshaped to match the code once the plant and
+  controller are settled. More detail only on request. Answer "never" and it is stored in
+  `.claude/cppmodel.local.json`.
 - **`cppmodel:language`** - decides C vs C++ for a new plant model or simulation file: checks a
   stored per-project preference (`.claude/cppmodel.local.json`) first, otherwise detects the
   project's existing convention or asks, and can remember the answer so it isn't asked again. Used
@@ -87,6 +94,7 @@ one from your login automatically, and every skill works the same with either.
 - `plugins/cppmodel/skills/simulation-testing/SKILL.md` - the write/debug-tests skill
 - `plugins/cppmodel/skills/simulations/SKILL.md` - the query skill
 - `plugins/cppmodel/skills/language/SKILL.md` - the C vs C++ decision skill
+- `plugins/cppmodel/skills/documentation/SKILL.md` - the plant/controller documentation skill
 - `plugins/cppmodel/skills/update-dependencies/SKILL.md` - the SDK update skill
 - `plugins/cppmodel/skills/ci-pipeline/SKILL.md` - the CI pipeline skill (GitHub Actions, GitLab
   CI, Bitbucket Pipelines, Gitea Actions)

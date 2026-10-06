@@ -45,6 +45,13 @@ answer.
 
 ## Questions to ask first
 
+Before asking anything, ask once whether the customer already has a description of the machine,
+such as a spec, a datasheet, notes, or a few sentences. If a document for this mechanism already
+exists, read it instead. Save their description as the draft document (`cppmodel:documentation`,
+"Lifecycle"). Then don't re-ask what it already answers clearly, but do push on anything vague in
+it, as with any other answer. If they have nothing written, skip the draft and go straight to the
+questions.
+
 Don't guess these - ask. Treat this like onboarding a new team member onto the machine: the goal
 isn't to collect five answers and move on, it's for the customer to actually walk you through how
 their machine behaves. A thin actuator/sensor count is not a signal that the machine itself is
@@ -284,3 +291,6 @@ built, tested, run, and its results checked, not just the model file.
 If the model stands for a real machine whose behaviour will later be checked against field logs,
 also offer `cppmodel:experiment-design` once it runs: a plan for collecting those logs, aimed at
 what this first model is least sure of, with the model's predicted trace for every run.
+
+Don't update the documentation while the model is still changing. It is finalized once the plant
+and controller are settled (see `cppmodel:documentation`, "Lifecycle").

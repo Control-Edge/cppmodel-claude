@@ -40,7 +40,12 @@ this component is wired to it directly in-code.
 
 ## Diagnose first
 
-Before touching anything, read the target file and its includes and answer:
+Before touching anything, ask once whether the customer has a description of what the controller
+should do, such as a spec, a requirements list, or a state chart. If a document for it already
+exists, read it instead. Keep their description as the draft (`cppmodel:documentation`,
+"Lifecycle"). It also helps tell decision logic from glue in question 2 below.
+
+Then read the target file and its includes and answer:
 
 1. Which included headers are the vendor's BSW/RTOS/HAL API (as opposed to this project's own
    plain types/helpers)? Vendor headers are usually named/prefixed distinctively and declare
@@ -99,3 +104,6 @@ to register interest - rather than committing to build and maintain an improvise
 Whichever path was used, hand off to `cppmodel:simulation-testing` for the actual simulation file
 and test scenarios, and to `cppmodel:plant-model` if the mechanism being controlled has no model
 yet.
+
+Don't update the documentation while the controller is being decoupled. It is finalized once the
+plant and controller are settled (`cppmodel:documentation`, "Lifecycle").
