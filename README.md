@@ -20,9 +20,10 @@ A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
   next execution consumes it), and confirms from the execution record that the values were really
   used.
 - **`cppmodel:parameter-sweep`** - runs a simulation over a grid or list of parameter values and
-  input profiles with `cppmodel-tool sweep` (SDK 0.6.3+), verifying after every run that the
-  posted values were applied, then reports the
-  pass/fail map, where the boundary lies, and the metrics you care about.
+  input profiles through the MCP server: `set_inputs` then a run of the binary, per run, and one
+  `get_binary_runs` call that checks every run used the posted values. Then it reports the
+  pass/fail map, where the boundary lies, and the metrics you care about. Nothing is built besides
+  the simulation; `cppmodel-tool sweep` is for CI and scripts.
 - **`cppmodel:experiment-design`** - designs a field data-collection plan for a real machine,
   aimed at the behaviour the plant model is least sure of. Every run carries the trace the current
   model predicts, computed by a `planned-<plan-id>` simulation that stays out of `ctest`/CI until
@@ -55,7 +56,8 @@ A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
   which provider, platform(s), and compiler(s) to target from what CppModel actually publishes a
   prebuilt SDK for. Installs the plugin's `install-cppmodel.sh`/`.ps1` templates into the project
   if it doesn't already have an equivalent script, so CI and local dependency fetches share the
-  same logic regardless of provider.
+  same logic regardless of provider. It builds the SDK's `cppmodel-tool` only when a pipeline
+  posts inputs or runs sweeps; no other skill builds it.
 - **`cppmodel:setup-environment`** - first-time machine setup: detects the OS, architecture,
   installed compilers/toolchains, build tools, and OpenSSL/zlib, compares them with the SDK builds
   CppModel actually publishes, and lets you pick an installed match, install a supported compiler,
@@ -82,6 +84,15 @@ project root:
 CPPMODEL_USERNAME=...
 CPPMODEL_PASSWORD=...
 ```
+
+Running simulations with posted inputs (`cppmodel:simulation-inputs`) and parameter sweeps
+(`cppmodel:parameter-sweep`) also needs:
+
+- a `cppmodel` MCP server whose `get_latest_result`, `get_execution` and `get_binary_runs` take the
+  `expected` argument, which checks a run's recorded values against the posted document;
+- CppModel SDK 0.7.2 or later, whose simulations print their `CppModel.BinaryFingerprint` when they
+  finish. With 0.7.0 to 0.7.1 the skills read the fingerprint from the execution record instead,
+  and before 0.7.0 there is none (`cppmodel:update-dependencies` updates the SDK).
 
 Installing the plugin is free and requires nothing further; using it against real data still
 requires a CppModel account. Free accounts use the shared `free-workspace.cppmodel.com` workspace
@@ -112,4 +123,4 @@ one from your login automatically, and every skill works the same with either.
   platform/compiler and fetch the CppModel SDK into `dependencies/`. The `cppmodel:ci-pipeline`
   and `cppmodel:update-dependencies` skills copy them into a project; `cppmodel:setup-environment`
   also runs them directly with an explicit compiler for first-time setup
-- `plugins/cppmodel/.mcp.json` - the `cppmodel` MCP server the query and inputs skills use
+- `plugins/cppmodel/.mcp.json` - the `cppmodel` MCP server the query, inputs and sweep skills use

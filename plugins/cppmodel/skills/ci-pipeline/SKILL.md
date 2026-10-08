@@ -194,6 +194,26 @@ workspace is part of the loop").
 Let `ctest`'s own nonzero exit code fail the job everywhere - don't wrap it in something that
 swallows the exit code.
 
+**Posting inputs or running sweeps (only when the pipeline needs it)**: a job that runs a
+simulation with posted inputs or parameters, or a whole parameter sweep, has no MCP server, so it
+uses the SDK's `cppmodel-tool` (`cppmodel-tool sweep <plan.json> <out>`, SDK 0.6.3+; plan format in
+`cppmodel:parameter-sweep`'s "In CI or a script"). This is the one place the plugin builds the
+tool - interactive work goes through the MCP server and doesn't need it. Build it after the
+dependency fetch, with the same toolchain and generator as the project:
+
+```
+cmake -S dependencies/share/cppmodel/tools -B build/cppmodel-tool
+cmake --build build/cppmodel-tool
+```
+
+It logs in with the same `CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD` variables (via a `.env` written
+from the secrets at the project root, or `--env <file>`). It consumes posted documents on that
+account, so a sweep job must not run concurrently with another job that runs the same simulation
+with the same login - serialize them (GitHub/Gitea `concurrency:`, GitLab `resource_group:`,
+Bitbucket separate steps). Let the sweep's exit code fail the job (`0` every run verified, `1`
+stopped early), and keep `<out>/summary.json` as an artifact so its `fingerprint`/`index` rows can
+be read later with `get_binary_runs`. Don't add any of this unless the user asked for it.
+
 ### Worked example (GitHub Actions, Linux+macOS+Windows matrix)
 
 For reference - a real, working shape (adapt names/versions to what was actually chosen, this

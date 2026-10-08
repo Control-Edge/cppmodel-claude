@@ -238,8 +238,9 @@ the user what to add. Don't run `ctest` without it; the resulting failures would
 regressions when they aren't.
 
 Querying results and posting inputs go through the plugin's `cppmodel` MCP server, which needs no
-local build; mention that the user authenticates it once with `/mcp`. Only parameter sweeps need
-the SDK's `cppmodel-tool`, and `cppmodel:parameter-sweep` builds it when first needed.
+local build; mention that the user authenticates it once with `/mcp`. Runs with posted inputs and
+parameter sweeps go through it too, so don't build the SDK's `cppmodel-tool`. It's only for CI jobs
+and scripts, and `cppmodel:ci-pipeline` builds it when a pipeline needs it.
 The SDK writes a `.cppmodeltoken` login cache into the directory a simulation runs from, so make
 sure the project's `.gitignore` covers `.cppmodeltoken` along with `.env`.
 

@@ -176,7 +176,8 @@ tests pass, it's safe to remove the backup.
 
 If `cppmodel-tool` was built from `dependencies/share/cppmodel/tools` (usually into
 `build/cppmodel-tool/`), rebuild it too, with `cmake --build build/cppmodel-tool`, so it matches
-the new SDK. It's only needed for `cppmodel:parameter-sweep`, which covers building it.
+the new SDK. Don't build it otherwise: it's only for CI jobs and scripts (`cppmodel:ci-pipeline`
+builds it there), since sweeps and runs with posted inputs go through the MCP server.
 
 ## 9. Offer to keep CI and docs in sync
 

@@ -30,8 +30,8 @@ Show what you inferred and let the user correct it (step 5).
 - **The logs are present** in `experiments/<plan-id>/logs/` (or wherever the user put them; move
   nothing without asking).
 - **The model version.** Rebuild the planned simulation's binary and compare its
-  `CppModel.BinaryFingerprint` (`cppmodel-tool fetch fingerprint <binary>`, or the record of a run
-  of it) or git commit with the plan's `model`. If they differ, the model has changed since the plan was
+  `CppModel.BinaryFingerprint` (printed by the rebuilt binary when it runs, from SDK 0.7.2, or
+  recorded in the parameters of a run of it) or git commit with the plan's `model`. If they differ, the model has changed since the plan was
   issued. Comparisons in step 4 still go against the plan's model, because that was the hypothesis
   the field session tested: check out or keep a build of that version for the as-run simulations,
   and tell the user. The planned predictions themselves are never regenerated: fetch them with

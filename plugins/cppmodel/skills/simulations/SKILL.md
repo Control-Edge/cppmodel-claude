@@ -8,7 +8,11 @@ description: Query CppModel Workspace API results - list simulations, fetch the 
 All Workspace API access goes through the plugin's `cppmodel` MCP server
 (`https://mcp.cppmodel.com/mcp`, declared in the plugin's `.mcp.json`). It signs in with the
 user's CppModel account (free or licensed, both work the same) over OAuth, so querying results
-needs no `.env` and no local tool.
+needs no `.env` and no local tool. Running a simulation with chosen values, or a whole
+parameter sweep, also needs nothing built besides the simulation: `set_inputs`, then run the
+binary, then check the run with `get_binary_runs` and `expected`. The SDK's `cppmodel-tool` does the
+same for CI jobs and scripts only (`cppmodel:ci-pipeline` builds it there). Don't build it for work
+done here.
 
 The server's instructions name the account and workspace the session is signed in as. Before the
 first `cppmodel` tool call in a conversation, tell the user that account and workspace in one short
@@ -47,6 +51,11 @@ users' runs neither read nor consume it. Don't call it directly from here. Use
 `cppmodel:simulation-inputs` for one scenario or `cppmodel:parameter-sweep` for many; both verify
 the document was applied.
 
+`get_latest_result`, `get_execution` and `get_binary_runs` take `expected`, the document posted
+before the run (for `get_binary_runs`, one per run in run order, the first for `start`). Each run
+then reports `applied` and `differences` (each posted value the run didn't use), and
+`get_binary_runs` also `allApplied`. This needs a server version that has `expected`.
+
 `delete_simulation` removes the simulation with its entire execution history and any pending
 document, the same as deleting it in the UI. It can't be undone and affects everyone who uses that
 simulation, so only call it when the user explicitly asks, after telling them what will be lost.
@@ -54,7 +63,10 @@ simulation, so only call it when the user explicitly asks, after telling them wh
 ## Runs of one build: `CppModel.BinaryFingerprint`
 
 From SDK 0.7.0, every execution records the parameter `CppModel.BinaryFingerprint`, a hash of the
-executable that ran it: the same value means the same build, a new value means it was rebuilt. The
+executable that ran it: the same value means the same build, a new value means it was rebuilt.
+From SDK 0.7.2 the simulation also prints it when it finishes (`CppModel.BinaryFingerprint: <n>`,
+then `Execution: <id>` when the server returned one; `(not submitted)` when the execution never
+reached the workspace). The
 server indexes executions by it, so `get_binary_runs` (`simulation`, `fingerprint`, `start`,
 `count` up to 50) returns that build's runs in run order: index 0 is its first execution, indices
 never move as more runs arrive, and other builds' executions don't interleave. Each run comes with
@@ -62,8 +74,8 @@ never move as more runs arrive, and other builds' executions don't interleave. E
 it, so pass/fail exists only as the run's exit code); `total` says how
 many runs the build has (`count: 0` returns just that), and `nextStart` the next page.
 
-Use it for a batch run by one unchanged binary, such as a parameter sweep (whose `summary.json`
-gives each run's `fingerprint` and `index`) or repeated runs of a test, instead of paging
+Use it for a batch run by one unchanged binary, such as a parameter sweep (whose `sweep.json`
+records its `fingerprint` and `start` index) or repeated runs of a test, instead of paging
 `list_executions` and guessing which ids belong together. It counts runs of the same binary by
 every user. Executions from older SDKs, or recorded before the server indexed fingerprints, aren't
 found; use `list_executions` for those.
@@ -107,7 +119,7 @@ explaining a URL.
 ## Running simulations still needs `.env`
 
 The MCP server only reads and posts data. The simulation binaries themselves (and `ctest`, and
-`cppmodel-tool sweep`) log in with `.env` at the project root:
+`cppmodel-tool` in CI) log in with `.env` at the project root:
 
 ```
 CPPMODEL_USERNAME=...

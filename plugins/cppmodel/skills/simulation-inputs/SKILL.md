@@ -55,8 +55,9 @@ Document format (the `set_inputs` arguments besides `simulation`):
 ## Requirements
 
 - The `cppmodel` MCP server, authenticated (see `cppmodel:simulations`). It provides
-  `get_pending_inputs`, `set_inputs`, and `get_latest_result`, used below. The simulation doesn't
-  need to have run before for a post to be accepted.
+  `get_pending_inputs`, `set_inputs`, `get_latest_result` and `get_binary_runs`, used below. The
+  check in step 5 needs a server version whose execution tools take `expected`. The simulation
+  doesn't need to have run before for a post to be accepted.
 - `.env` at the project root with `CPPMODEL_USERNAME` and `CPPMODEL_PASSWORD`, to run the binary;
   see `cppmodel:simulation-testing`. If they're missing, tell the user and stop.
 
@@ -153,21 +154,36 @@ Say so and stop.
 
 ## 5. Confirm the values were applied, then report
 
-Fetch the execution record with `get_latest_result` (pass `signals` to limit it to the series
-you posted and the outputs you need). On a simulation others run too, make sure it's your run:
-with SDK 0.7.0+, its `CppModel.BinaryFingerprint` is your binary's (`cppmodel-tool fetch
-fingerprint <binary>`, if the tool is built, prints it), and `get_binary_runs` with that
-fingerprint fetches your run by index. Compare its `parameters` and `inputs` with what you posted:
+Read the fingerprint from the run's output. From SDK 0.7.2 on, the simulation prints
+`CppModel.BinaryFingerprint: <n>` when it finishes, followed by `Execution: <id>` when the server
+returned the new execution's id. `(not submitted)` after the fingerprint means the execution never
+reached the workspace: there's nothing to check, so say so and stop. An SDK from 0.7.0 to 0.7.1
+records the fingerprint without printing it. Take it from `CppModel.BinaryFingerprint` in
+`get_latest_result`'s `parameters` instead.
 
-- **Posted parameters** should appear with the posted value.
-- **Posted input series** should match when read with the hold rule. The recorded series are
-  change-compressed: `x` holds only the times the value changed, plus the end time.
-- **A recorded value equal to the fallback instead of the posted value**, or a posted name
-  missing from the record, means the document wasn't applied. The usual cause is an SDK older
-  than 0.6.1. Stop and report it plainly, with posted vs recorded values. This run's results
-  describe the default run, not the requested scenario. Don't present them as the scenario's
-  outcome, and don't work around it by editing the simulation's fallback values, unless the user
-  asks for that explicitly.
+Fetch the run and check it in one call, passing the posted document (`{inputs, parameters}`, as
+sent) as `expected`, and `signals` to limit the record to the series you posted and the outputs you
+need:
+
+- `get_binary_runs` with `simulation`, `fingerprint`, `start: total - 1`, `count: 1` and
+  `expected: [document]`, where `total` comes from a first call with `count: 0`. This finds your run
+  even when other people run the same simulation, as long as nobody else ran this same binary in
+  between.
+- `get_execution` with the printed `Execution:` id and `expected: document` is the same check.
+- `get_latest_result` with `expected: document` is enough when nobody else runs this simulation.
+  It also works with SDK 0.6.1 to 0.6.4, which record no fingerprint.
+
+The result gets `applied` and `differences`:
+
+- **`applied: true`**: every posted parameter was recorded with the posted value, and every posted
+  input series matches the record under the hold rule. A posted name the code never reads is
+  recorded too, so this doesn't rule out a typo. Step 1's check against the source does that.
+- **`applied: false`**: `differences` has one line per posted value the run didn't use, with
+  posted and recorded values. The document wasn't applied, and the usual cause is an SDK older
+  than 0.6.1. Stop and report it plainly, quoting the `differences`. This run's results describe
+  the default run, not the requested scenario. Don't present them as the scenario's outcome, and
+  don't work around it by editing the simulation's fallback values, unless the user asks for that
+  explicitly.
 
 Once the values are confirmed, report:
 

@@ -165,7 +165,7 @@ is authenticated. If either is missing, say so and stop.
    so reconciliation and later plans fetch it from there (`get_binary_runs`) instead of
    regenerating it.
 3. **Record the model version.** Copy the binary's `CppModel.BinaryFingerprint` (SDK 0.7.0+; the
-   sweep summary's `fingerprint`) into the plan, together with the git commit and whether the tree
+   sweep's `fingerprint`) into the plan, together with the git commit and whether the tree
    was dirty. With an older SDK there's no fingerprint: tell the user the predictions are tied to
    the model only by the commit.
 4. **Copy each prediction into the plan.** From each run's execution record, take every logged
