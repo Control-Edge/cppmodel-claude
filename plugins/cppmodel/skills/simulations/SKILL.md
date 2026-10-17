@@ -10,9 +10,9 @@ All Workspace API access goes through the plugin's `cppmodel` MCP server
 user's CppModel account (free or licensed, both work the same) over OAuth, so querying results
 needs no `.env` and no local tool. Running a simulation with chosen values, or a whole
 parameter sweep, also needs nothing built besides the simulation: `set_inputs`, then run the
-binary, then check the run with `get_binary_runs` and `expected`. The SDK's `cppmodel-tool` does the
-same for CI jobs and scripts only (`cppmodel:ci-pipeline` builds it there). Don't build it for work
-done here.
+binary, then check the run with `get_binary_runs` and `expected`. The SDK's `cppmodel-tool` (prebuilt
+in `dependencies/bin/` from SDK 0.8) does the same for CI jobs and scripts only
+(`cppmodel:ci-pipeline`). Don't use it for work done here.
 
 The server's instructions name the account and workspace the session is signed in as. Before the
 first `cppmodel` tool call in a conversation, tell the user that account and workspace in one short
@@ -32,6 +32,7 @@ an ad-hoc program instead, and never search the project for result files in thei
 | `get_binary_runs` | the runs of one build, by run index, each with `passed` (see "Runs of one build") |
 | `get_pending_inputs` | the document waiting for this account's next execution (usually none) |
 | `set_inputs` | post this account's next execution's inputs/parameters (see below) |
+| `submit_execution` | record an execution no binary ran, such as measured data (see below) |
 | `delete_simulation` | IRREVERSIBLE (see below) |
 | `get_workspace` | which workspace the server is connected to, with UI and API URLs |
 | `get_api_version` | the Workspace API version |
@@ -56,6 +57,16 @@ before the run (for `get_binary_runs`, one per run in run order, the first for `
 then reports `applied` and `differences` (each posted value the run didn't use), and
 `get_binary_runs` also `allApplied`. This needs a server version that has `expected`.
 
+`submit_execution` records an execution `{inputs, parameters, results}` that no binary ran, such
+as field measurements or data imported from another tool, exactly as a binary's own submission
+would: it becomes part of that simulation's history (creating the simulation if needed) and
+consumes the account's pending document for it, which the tool reports. Only use it when the user
+asks to record such data, never to fake, patch or replace a run's results. Call it with `dry_run`
+first to validate, and prefer a simulation name of its own (e.g. `<name> (field)`) so measured and
+simulated executions don't mix in one history. Pass `execution_time` (`DD-MM-YYYY HH:MM:SS`) when
+the data has a real start time; it defaults to now. Its `CppModel.BinaryFingerprint`, if given,
+must be a whole number; leave it out unless the data really came from that binary.
+
 `delete_simulation` removes the simulation with its entire execution history and any pending
 document, the same as deleting it in the UI. It can't be undone and affects everyone who uses that
 simulation, so only call it when the user explicitly asks, after telling them what will be lost.
@@ -63,7 +74,9 @@ simulation, so only call it when the user explicitly asks, after telling them wh
 ## Runs of one build: `CppModel.BinaryFingerprint`
 
 From SDK 0.7.0, every execution records the parameter `CppModel.BinaryFingerprint`, a hash of the
-executable that ran it: the same value means the same build, a new value means it was rebuilt.
+executable that ran it: the same value means the same build, a new value means it was rebuilt. It
+covers the executable only, not the CppModel shared library beside it (SDK 0.8+); a rebuild after
+an SDK update relinks the executable, so its fingerprint changes as well.
 From SDK 0.7.2 the simulation also prints it when it finishes (`CppModel.BinaryFingerprint: <n>`,
 then `Execution: <id>` when the server returned one; `(not submitted)` when the execution never
 reached the workspace). The
@@ -86,10 +99,11 @@ Every simulation run is submitted to the workspace, and its execution history is
 work: each execution keeps the inputs and parameters it read and every output series, retrievable
 by id later. So:
 
-- **Always run online.** Never set `CPPMODEL_OFFLINE`, never pass `runOffline`, and never run
-  offline to save time or avoid the API. A run whose output says `Could not reach API. Running
-  offline.` produced nothing anyone can look at or compare later. Treat it as a run that didn't
-  happen: fix the cause (`.env`, network, login) and run again.
+- **Always run online.** Never set `CPPMODEL_DISCARD_RESULTS` (before SDK 0.8: `CPPMODEL_OFFLINE`),
+  never pass `runOffline`, and never run offline to save time or avoid the API. A run whose
+  output says `Could not reach API. Running offline.`, or whose fingerprint line ends in
+  `(not submitted)`, produced nothing anyone can look at or compare later. Treat it as a run that
+  didn't happen: fix the cause (`.env`, network, login) and run again.
 - **Compare runs through the history.** Before vs after a change, one scenario against another, a
   sweep against an earlier sweep: `list_executions` finds them, `get_execution` fetches each by id,
   with `signals` for just the series being compared. A sweep or other batch of one build is
@@ -118,8 +132,8 @@ explaining a URL.
 
 ## Running simulations still needs `.env`
 
-The MCP server only reads and posts data. The simulation binaries themselves (and `ctest`, and
-`cppmodel-tool` in CI) log in with `.env` at the project root:
+The MCP server only reads and records data; it never runs anything. The simulation binaries
+themselves (and `ctest`, and `cppmodel-tool` in CI) log in with `.env` at the project root:
 
 ```
 CPPMODEL_USERNAME=...

@@ -1,7 +1,9 @@
 # Read-only probe used by the cppmodel:setup-environment skill: reports the Windows version,
-# architecture, installed toolchains (MSYS2 UCRT64/CLANG64, MSVC, clang-cl), build tools, and the
-# libraries CppModel links against (OpenSSL, zlib), plus which SDK builds download.cppmodel.com
-# currently publishes. Installs nothing. Windows only; use detect-environment.sh on Linux/macOS.
+# architecture, installed toolchains (MSVC and clang-cl, which the SDK supports; MSYS2/MinGW, which
+# it doesn't from 0.8 on), build tools, plus which SDK builds download.cppmodel.com currently
+# publishes. From SDK 0.8 the SDK is one self-contained DLL per architecture (OpenSSL and zlib
+# linked in), so no libraries are probed. Installs nothing. Windows only; use
+# detect-environment.sh on Linux/macOS.
 #
 # Output is one "key=value" per line, same shape as detect-environment.sh. Repeated keys
 # (toolchain=, published=) list one item each. Works on Windows PowerShell 5.1 and PowerShell 7.
@@ -22,17 +24,17 @@ kv os_pretty "$($osInfo.Caption) $($osInfo.Version)".Trim()
 kv os_version "$($osInfo.Version)"
 # PROCESSOR_ARCHITEW6432 is set when a 32-bit shell runs on a 64-bit OS - prefer it.
 $arch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
-kv arch $(switch ($arch) { "AMD64" { "x86_64" } "ARM64" { "arm64" } default { $arch } })
+kv arch $(switch ($arch) { "AMD64" { "x64" } "ARM64" { "ARM64" } default { $arch } })
 
 $pms = @("winget", "choco", "scoop") | Where-Object { Get-Command $_ }
 kv pkg_manager $(if ($pms) { $pms -join "," } else { "none" })
 
-# --- MSYS2 (UCRT64 / CLANG64) --------------------------------------------------------------------
 function Get-FirstVersion([string]$text) {
     if ($text -match '(\d+\.\d+(\.\d+)?)') { return $Matches[1] }
     return "unknown"
 }
 
+# --- MSYS2 / MinGW (not supported by SDK 0.8+; reported so the skill can say so) ---------------
 $msysCandidates = @($Msys2Root, "C:\msys64", "$env:USERPROFILE\scoop\apps\msys2\current", "C:\tools\msys64") |
     Where-Object { $_ -and (Test-Path (Join-Path $_ "usr\bin\pacman.exe")) }
 $msys = $msysCandidates | Select-Object -First 1
@@ -49,18 +51,6 @@ if ($msys) {
             # toolchain=<env> <family> <version> <path>
             kv toolchain "$($envName.ToUpper()) $family $v $path"
         }
-        # OpenSSL/zlib as MSYS2 packages for this environment.
-        $pkgPrefix = switch ($envName) {
-            "ucrt64"  { "mingw-w64-ucrt-x86_64" }
-            "clang64" { "mingw-w64-clang-x86_64" }
-            "mingw64" { "mingw-w64-x86_64" }
-        }
-        $pacman = Join-Path $msys "usr\bin\pacman.exe"
-        foreach ($lib in "openssl", "zlib") {
-            $q = & $pacman -Q "$pkgPrefix-$lib" 2>$null
-            if ($LASTEXITCODE -eq 0 -and $q) { kv lib "$($envName.ToUpper()) $lib found $(($q -split ' ')[1])" }
-            elseif (Test-Path $bin) { kv lib "$($envName.ToUpper()) $lib missing" }
-        }
     }
 }
 
@@ -75,10 +65,12 @@ if (Test-Path $vswhere) {
             # toolchain=MSVC <product line e.g. 2022> <MSVC toolset version> <VS install path>
             kv toolchain "MSVC $($i.catalog.productLineVersion) $msvcVer $($i.installationPath)"
         }
-        $clangCl = Join-Path $i.installationPath "VC\Tools\Llvm\x64\bin\clang-cl.exe"
-        if (Test-Path $clangCl) {
-            $v = Get-FirstVersion ((& $clangCl --version) | Select-Object -First 1)
-            kv toolchain "CLANGCL clang $v $clangCl"
+        foreach ($llvmArch in "x64", "ARM64") {
+            $clangCl = Join-Path $i.installationPath "VC\Tools\Llvm\$llvmArch\bin\clang-cl.exe"
+            if (Test-Path $clangCl) {
+                $v = Get-FirstVersion ((& $clangCl --version) | Select-Object -First 1)
+                kv toolchain "CLANGCL clang $v $clangCl"
+            }
         }
     }
 } else {
@@ -89,19 +81,6 @@ $llvmClangCl = Join-Path $env:ProgramFiles "LLVM\bin\clang-cl.exe"
 if (Test-Path $llvmClangCl) {
     $v = Get-FirstVersion ((& $llvmClangCl --version) | Select-Object -First 1)
     kv toolchain "CLANGCL clang $v $llvmClangCl"
-}
-
-# OpenSSL/zlib for MSVC/clang-cl builds come from outside MSYS2 - vcpkg or a standalone installer.
-if ($env:VCPKG_ROOT -and (Test-Path $env:VCPKG_ROOT)) {
-    kv vcpkg $env:VCPKG_ROOT
-    $installed = Join-Path $env:VCPKG_ROOT "installed\x64-windows\include"
-    kv lib "VCPKG openssl $(if (Test-Path (Join-Path $installed 'openssl\ssl.h')) { 'found' } else { 'missing' })"
-    kv lib "VCPKG zlib $(if (Test-Path (Join-Path $installed 'zlib.h')) { 'found' } else { 'missing' })"
-} else {
-    kv vcpkg "missing"
-}
-foreach ($d in "$env:ProgramFiles\OpenSSL-Win64", "$env:ProgramFiles\OpenSSL") {
-    if (Test-Path (Join-Path $d "include\openssl\ssl.h")) { kv lib "STANDALONE openssl found $d" }
 }
 
 # --- Build tools on PATH -------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 ---
 name: cppmodel:simulation-testing
-description: Write, extend, or debug a CppModel-based simulation test, in C (CppModelBase's CModel.h API, directly or via a project's own CMODEL_CYCLIC/CMODEL_SIMULATE macros) or C++ (CppModelBase::Simulation, directly or via a project's own wrapper class). Use when asked to add test coverage to a CppModel simulation, when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data.
+description: Write, extend, or debug a CppModel-based simulation test, in C (the SDK's CModel.h API - CppModel_* functions and its CMODEL_CYCLIC/CMODEL_SIMULATE macros - directly or via a project's own helpers) or C++ (cppmodel::Simulation from cppmodel.hpp, CppModelBase::Simulation in older code, directly or via a project's own wrapper class). Use when asked to add test coverage to a CppModel simulation, when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data.
 ---
 
 ## Requirements: check credentials before running or debugging anything
@@ -60,7 +60,8 @@ this project uses without looking.
 ### C++
 
 Check first whether this project has its own base class layered on top of
-`CppModelBase::Simulation` (`cppmodel/Simulation.h`) - e.g. a project-specific wrapper might add a
+`cppmodel::Simulation` (or, in code written before SDK 0.8, `CppModelBase::Simulation` from
+`cppmodel/Simulation.h` - the same class under its old names) - e.g. a project-specific wrapper might add a
 `steps` map of `{time_ms, function}` chained through a `CallStep()`-like helper, a per-cycle entry
 point override, and helpers for tracing which requirements each simulation exercises out to a
 requirements file. If a wrapper like this exists anywhere in the project, subclass *that* and
@@ -68,37 +69,49 @@ follow its exact shape (populate its step container, override its per-cycle meth
 requirement-tracing helper if the scenario covers a named requirement) - don't build a second,
 competing mechanism alongside it.
 
-If no such wrapper exists, subclass `CppModelBase::Simulation` directly: override `RunCyclic` as
-the per-cycle callback, with the exact parameter type from the vendored `cppmodel/Model.h` (SDK
-0.6.x: `unsigned long long simulationTime_ms`; older releases: `double`). Use
-`inputs.GetSafe("name", fallback)` / `outputs["name"]` (`SimulationInputs`/`SimulationOutputs`,
-indexable like a map) to cross the boundary, and always set `outputs["CppModel.StepResult"]`.
-Read parameters with `GetParameter("name", fallback)` (SDK 0.6.1+), which returns the posted value
-or else records and returns the fallback. `main()` constructs the simulation object and calls
-`.Simulate()`.
+If no such wrapper exists, `#include <cppmodel.hpp>` (C++17) and subclass `cppmodel::Simulation`
+directly. Set `name`, `time_ms` and `stepSize_ms` in the constructor. Override `RunCyclic` as the
+per-cycle callback, with the exact parameter type from the vendored `cppmodel.hpp`
+(`unsigned long long simulationTime_ms` since SDK 0.6; before 0.8 it was in `cppmodel/Model.h`, and
+releases before 0.6 used `double`). Use `inputs.GetSafe("name", fallback)` / `outputs["name"] = value`
+to cross the boundary, and always set `outputs["CppModel.StepResult"]`. Read parameters with
+`GetParameter("name", fallback)` (SDK 0.6.1+), which returns the posted value or else records and
+returns the fallback; `.get<double>()` etc. converts it. `main()` constructs the simulation object,
+calls `.Simulate()`, and returns `GetSimulationResult()`. The SDK's
+`share/cppmodel/example/simulation.cpp` is a complete minimal one.
 
-Any C++ file that includes the SDK's headers (`Simulation.h` pulls in the header-only `httplib.h`)
-must be compiled with `CPPHTTPLIB_OPENSSL_SUPPORT` defined, e.g.
-`target_compile_definitions(<target> PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)`. The SDK library is
-built with it, and without it the two disagree on `httplib::Client`'s layout. The result links
-cleanly, then segfaults inside `httplib` on the first API call. C simulations that only include
-`CModel.h` are unaffected.
+From SDK 0.8 a few semantics are worth knowing when writing or debugging C++ simulations:
+
+- `inputs[...]`/`GetSafe()` return a value, not a reference: assigning to one does nothing.
+- Inputs and outputs are numbers (`double`; `bool` converts to 0/1). Assigning a string or JSON
+  object to an output throws. Parameters keep their JSON type.
+- An exception thrown in `Init`/`RunCyclic`/`Finalize` aborts the run and is rethrown from
+  `Simulate()`; library errors are `cppmodel::Error`. Uncaught, it ends the process with a
+  nonzero exit and no submitted execution, so read the exception's message before looking for a
+  trace.
+- `Simulate()` throws when `stepSize_ms` is 0.
 
 ### C
 
-Check first whether the project has a `ModelHelpers.h` (or similarly-named header) providing
-`CMODEL_CYCLIC() { ... }` / `CMODEL_SIMULATE("Name", totalTime_ms, task_period_ms)` macros (the
-latter expands to `main()`) plus an `InternalStep_ts` step-schedule array run through
-`RunInternalSteps`. Grep for `CMODEL_SIMULATE`/`ModelHelpers.h` first - if present, use it exactly
-as existing C simulations in the project do.
+C simulations `#include <CModel.h>`. Check first whether the project has its own helper header
+(often `ModelHelpers.h`) with an `InternalStep_ts` step-schedule array run through
+`RunInternalSteps`, or its own versions of the `CMODEL_*` macros. Grep for `CMODEL_SIMULATE`,
+`InternalStep_ts` and `ModelHelpers.h` first - if present, use them exactly as existing C
+simulations in the project do.
 
-If absent, use the lower-level `CModel.h` API directly: `CppModel_create(name, totalTime_ms,
-task_period_ms)` to build the simulation, `CppModel_setRunStepFunction(sim, RunCyclic)` to
-register a per-cycle callback shaped `void RunCyclic(CModelSimulation_ts *self, unsigned long
-time)`, `CppModel_getInput{U8,I32,...}(self, "name", fallback)` / `CppModel_setOutput{U8,I32,...}
-(self, "name", value)` to cross the boundary, `CppModel_Simulate(sim)` to run it, and
-`CppModel_getSimulationResult(sim)` as `main`'s return value. Always call
-`CppModel_setOutputU8(self, "CppModel.StepResult", result)` every cycle.
+Otherwise use `CModel.h` itself. Its macros are the shortest form: `CMODEL_CYCLIC() { ... }`
+defines the per-cycle callback (`void RunCyclic(CModelSimulation_ts *self, unsigned long
+currentTime_ms)`), and `CMODEL_SIMULATE("Name", totalTime_ms, task_period_ms)` expands to a `main()`
+that creates, runs and destroys the simulation and returns its result. The SDK's
+`share/cppmodel/example/simulation.c` is a complete minimal one. The same by hand:
+`CppModel_create(name, totalTime_ms, task_period_ms)` (NULL on failure), `CppModel_setRunStepFunction(sim,
+RunCyclic)`, `CppModel_Simulate(sim)`, `CppModel_getSimulationResult(sim)` as `main`'s return
+value, then `CppModel_destroy(sim)`. Either way, cross the boundary with
+`CppModel_getInput{U8,I32,...,F64}(self, "name", fallback)` / `CppModel_setOutput{U8,I32,...,F64}(self,
+"name", value)` and `CppModel_getParameter{...}(self, "name", fallback)`, and call
+`CppModel_setOutputU8(self, "CppModel.StepResult", result)` every cycle. Values cross as `double`
+(from SDK 0.8), so an integer type round-trips exactly up to 2^53. A failing call prints
+`CppModel: <function>(<name>) failed: ...` on stderr and returns the fallback.
 
 ### Either way
 
@@ -121,27 +134,40 @@ trusting them.
 cmake --build build --target <SimulationName>
 ```
 
-Then run the binary directly - it needs the CppModel credentials in `.env` (see "Requirements"
+Then run the binary directly from the build folder - it needs the CppModel credentials in `.env` (see "Requirements"
 above) sourced into its environment:
 
 ```
 set -a && source .env && set +a && ./build/<path-to>/<SimulationName>
 ```
 
+(With a Visual Studio generator the binary is under `build/<Config>/`.)
+
 Exit code 0 means every cycle's `StepResult` was 1. Nonzero means at least one cycle failed, but
 the binary itself gives no detail about which one - it only prints a
-`UI: https://<workspace>.cppmodel.com/simulations/<SimulationName>` line.
+`UI: https://<workspace>.cppmodel.com/simulations/<SimulationName>` line, its
+`CppModel.BinaryFingerprint`, and, once submitted, the new `Execution:` id. A binary that fails to start with a
+missing `libcppmodel.so.1`/`libcppmodel.dylib`/`cppmodel.dll` was built without
+`cppmodel_deploy_runtime(<target>)` (below).
 
 Every run is submitted to the workspace and stays in the simulation's execution history - see
-`cppmodel:simulations`' "The workspace is part of the loop". Never run offline
-(`CPPMODEL_OFFLINE`, `runOffline`); a run that prints `Running offline.` didn't count, so fix the
-cause and rerun.
+`cppmodel:simulations`' "The workspace is part of the loop". Never run without submitting
+(`CPPMODEL_DISCARD_RESULTS`, before 0.8 `CPPMODEL_OFFLINE`, or `runOffline`); a run that prints
+`Running offline.` or `(not submitted)` didn't count, so fix the cause and rerun.
 
-If this simulation isn't yet wired into `ctest`, register it in the relevant `CMakeLists.txt`:
+A new simulation needs its target in the relevant `CMakeLists.txt` (SDK 0.8+; the project already
+has `find_package(cppmodel)`), registered with `ctest`:
 
 ```
+add_executable(<SimulationName> simulations/<SimulationName>.c models/<Name>Model.c)
+target_link_libraries(<SimulationName> PRIVATE cppmodel::cppmodel)
+cppmodel_deploy_runtime(<SimulationName>)  # copies the CppModel library next to the executable
 add_test(NAME <SimulationName>Test COMMAND <SimulationName>)
 ```
+
+Match the project's existing pattern if it has one (a loop over simulation files, a helper
+function). Don't add OpenSSL, zlib or `CPPHTTPLIB_*` settings; a project that still has them is on
+an SDK before 0.8 (`cppmodel:update-dependencies`).
 
 Do this when the simulation is created, not after - an unregistered simulation can be built and
 even run manually indefinitely without ever actually gating anything.

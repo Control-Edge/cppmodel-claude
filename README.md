@@ -47,23 +47,24 @@ A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
   project's existing convention or asks, and can remember the answer so it isn't asked again. Used
   automatically by `cppmodel:plant-model` and `cppmodel:simulation-testing`.
 - **`cppmodel:update-dependencies`** - downloads the latest CppModel SDK from
-  `download.cppmodel.com` for the right platform/toolchain, diffs its headers against what's
-  already vendored to catch interface changes (`RunCyclic`'s signature especially), fixes
-  unambiguous call-site breakage and asks about anything unclear, then rebuilds to verify before
-  offering to sync the version pinned in CI/docs.
+  `download.cppmodel.com` for the right platform, diffs its headers against what's already
+  vendored to catch interface changes (`RunCyclic`'s signature especially), migrates the build
+  files when moving a project from an SDK before 0.8 to the 0.8 shared library
+  (`find_package(cppmodel)`), fixes unambiguous call-site breakage and asks about anything
+  unclear, then rebuilds to verify before offering to sync the version pinned in CI/docs.
 - **`cppmodel:ci-pipeline`** - generates or extends a CI pipeline (GitHub Actions, GitLab CI,
   Bitbucket Pipelines, or Gitea Actions) that builds the project and runs its simulations, asking
   which provider, platform(s), and compiler(s) to target from what CppModel actually publishes a
   prebuilt SDK for. Installs the plugin's `install-cppmodel.sh`/`.ps1` templates into the project
   if it doesn't already have an equivalent script, so CI and local dependency fetches share the
-  same logic regardless of provider. It builds the SDK's `cppmodel-tool` only when a pipeline
-  posts inputs or runs sweeps; no other skill builds it.
-- **`cppmodel:setup-environment`** - first-time machine setup: detects the OS, architecture,
-  installed compilers/toolchains, build tools, and OpenSSL/zlib, compares them with the SDK builds
-  CppModel actually publishes, and lets you pick an installed match, install a supported compiler,
-  or use the closest match. For an unsupported OS/compiler it drafts a request to
-  support@cedge.se listing what is available for your OS. Then installs what's missing plus the
-  SDK and verifies a build.
+  same logic regardless of provider. It uses the SDK's prebuilt `cppmodel-tool` only when a
+  pipeline posts inputs or runs sweeps; no other skill uses it.
+- **`cppmodel:setup-environment`** - first-time machine setup: detects the OS, architecture, C
+  library, installed compilers/toolchains and build tools, compares them with the SDK builds
+  CppModel actually publishes (one per OS and architecture from SDK 0.8), and lets you pick an
+  installed supported compiler or install one. For an unsupported platform or compiler (such as
+  MinGW) it drafts a request to support@cedge.se listing what is available for your OS. Then
+  installs what's missing plus the SDK and verifies a build.
 
 ## Install
 
@@ -75,6 +76,13 @@ A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
 The plugin connects Claude Code to the `cppmodel` MCP server at `https://mcp.cppmodel.com/mcp`.
 Run `/mcp` once and authenticate it with your CppModel account.
 
+Other AI assistants get the same skills from that server without the plugin: its `get_guide` tool
+reads them from this repository's `main` branch (cached for an hour) and serves them as guides,
+with a `new-project` guide that puts them in order. So what's merged here reaches those clients
+too. Keep the skills free of anything only Claude Code can follow, beyond what `get_guide`'s
+reading notes translate (`cppmodel:<name>` skills, `${CLAUDE_PLUGIN_ROOT}` paths and links to a
+skill's own files, `AskUserQuestion`, Artifacts, `/mcp`, `.claude/cppmodel.local.json`).
+
 ## Requirements
 
 A CppModel account (free or licensed). Running simulations also needs a `.env` file at your
@@ -84,6 +92,12 @@ project root:
 CPPMODEL_USERNAME=...
 CPPMODEL_PASSWORD=...
 ```
+
+Building simulations needs the CppModel SDK. From 0.8 it is one self-contained shared library per
+OS and architecture (Linux x86_64/aarch64 with glibc 2.28+, Windows x64/ARM64, macOS 11+
+universal), used with GCC or Clang, MSVC or clang-cl, or Apple Clang; MinGW isn't supported. The
+skills set up 0.8+ projects with `find_package(cppmodel)`, and `cppmodel:update-dependencies`
+moves older projects over.
 
 Running simulations with posted inputs (`cppmodel:simulation-inputs`) and parameter sweeps
 (`cppmodel:parameter-sweep`) also needs:
@@ -112,15 +126,15 @@ one from your login automatically, and every skill works the same with either.
   CI, Bitbucket Pipelines, Gitea Actions)
 - `plugins/cppmodel/skills/setup-environment/SKILL.md` - the environment setup skill
 - `plugins/cppmodel/scripts/detect-environment.sh` / `.ps1` - read-only probes the setup skill runs
-  to report OS, compilers, tools, libraries, and the currently published SDK builds
+  to report OS, architecture, C library, compilers, tools, and the currently published SDK builds
 - `plugins/cppmodel/skills/simulation-inputs/SKILL.md` - the inputs/parameters skill
 - `plugins/cppmodel/skills/parameter-sweep/SKILL.md` - the sweep skill
 - `plugins/cppmodel/skills/experiment-design/SKILL.md` - the field experiment-plan skill, with
   `plan-format.md`, the plan format reconciliation reads
 - `plugins/cppmodel/skills/experiment-reconcile/SKILL.md` - the field-log reconciliation skill,
   with `reconciliation-format.md`, the format of its findings
-- `plugins/cppmodel/scripts/templates/install-cppmodel.sh` / `.ps1` - templates that detect
-  platform/compiler and fetch the CppModel SDK into `dependencies/`. The `cppmodel:ci-pipeline`
-  and `cppmodel:update-dependencies` skills copy them into a project; `cppmodel:setup-environment`
-  also runs them directly with an explicit compiler for first-time setup
+- `plugins/cppmodel/scripts/templates/install-cppmodel.sh` / `.ps1` - templates that detect the OS
+  and architecture and fetch the CppModel SDK (0.8+) into `dependencies/`. The
+  `cppmodel:ci-pipeline` and `cppmodel:update-dependencies` skills copy them into a project;
+  `cppmodel:setup-environment` also runs them directly for first-time setup
 - `plugins/cppmodel/.mcp.json` - the `cppmodel` MCP server the query, inputs and sweep skills use

@@ -205,14 +205,14 @@ was re-posted.
 ## In CI or a script
 
 A pipeline or script that sweeps without an AI assistant uses `cppmodel-tool sweep` (SDK 0.6.3+),
-which runs the same post-run-verify loop from a plan file. It ships as source with the SDK in
-`<sdk>/share/cppmodel/tools`. `cppmodel:ci-pipeline` builds it in the pipeline. Locally, build it
-with the project's toolchain:
+which runs the same post-run-verify loop from a plan file. From SDK 0.8 it ships prebuilt with the
+SDK as `dependencies/bin/cppmodel-tool` (`.exe` on Windows); before 0.8 it shipped as source in
+`<sdk>/share/cppmodel/tools`, built with the project's toolchain
+(`cmake -S dependencies/share/cppmodel/tools -B build/cppmodel-tool`). `cppmodel:ci-pipeline` sets
+it up in the pipeline.
 
 ```
-cmake -S dependencies/share/cppmodel/tools -B build/cppmodel-tool
-cmake --build build/cppmodel-tool
-cppmodel-tool sweep <plan.json> <out-dir> [--dry-run] [--timeout <seconds>] [--workspace <id>] [--env <file>]
+dependencies/bin/cppmodel-tool sweep <plan.json> <out-dir> [--dry-run] [--timeout <seconds>] [--workspace <id>] [--env <file>]
 ```
 
 The plan lists `simulation`, `binary` (relative to the folder of the `.env` in use), `base`

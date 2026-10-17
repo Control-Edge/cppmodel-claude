@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Read-only probe used by the cppmodel:setup-environment skill: reports the OS, architecture,
-# installed C++ compilers, build tools, and the libraries CppModel links against (OpenSSL, zlib),
-# plus which SDK builds download.cppmodel.com currently publishes for this OS/arch.
+# Read-only probe used by the cppmodel:setup-environment skill: reports the OS, architecture, the
+# C library (glibc) version, installed C++ compilers and build tools, plus which SDK builds
+# download.cppmodel.com currently publishes. From SDK 0.8 the SDK is one self-contained shared
+# library per OS/arch (OpenSSL and zlib linked in), so no libraries are probed.
 # Installs nothing. Covers Linux and macOS; use detect-environment.ps1 on Windows.
 #
 # Output is one "key=value" per line so it's easy to read back. Repeated keys (compiler=,
@@ -41,6 +42,15 @@ if [[ "$os" == "Linux" ]]; then
         kv os_version "${VERSION_ID:-unknown}"
     fi
     if grep -qi microsoft /proc/version 2>/dev/null; then kv wsl "1"; else kv wsl "0"; fi
+    # The Linux SDK needs glibc 2.28+; musl (Alpine) isn't supported.
+    glibc="$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $2}')"
+    if [[ -n "$glibc" ]]; then
+        kv libc "glibc $glibc"
+    elif ldd --version 2>&1 | grep -qi musl; then
+        kv libc "musl"
+    else
+        kv libc "unknown"
+    fi
 elif [[ "$os" == "macOS" ]]; then
     kv os_pretty "macOS $(sw_vers -productVersion 2>/dev/null || echo unknown)"
     kv os_version "$(sw_vers -productVersion 2>/dev/null || echo unknown)"
@@ -105,29 +115,6 @@ tool_line() {
     fi
 }
 for t in cmake ninja make git curl tar unzip; do tool_line "$t"; done
-
-# --- Libraries (OpenSSL + zlib - CppModel's client libraries link against both) ------------------
-include_dirs=(/usr/include /usr/local/include)
-if [[ "$os" == "macOS" ]] && command -v brew >/dev/null 2>&1; then
-    include_dirs+=("$(brew --prefix openssl@3 2>/dev/null)/include" "$(brew --prefix zlib 2>/dev/null)/include" "$(brew --prefix)/include")
-fi
-if [[ "$os" == "macOS" ]] && command -v xcrun >/dev/null 2>&1; then
-    include_dirs+=("$(xcrun --show-sdk-path 2>/dev/null)/usr/include")
-fi
-lib_line() {
-    local name="$1" header="$2" pc="$3" d v
-    for d in "${include_dirs[@]}"; do
-        if [[ -f "$d/$header" ]]; then
-            v=""
-            command -v pkg-config >/dev/null 2>&1 && v="$(pkg-config --modversion "$pc" 2>/dev/null)"
-            kv lib "$name found ${v:-version-unknown} $d/$header"
-            return
-        fi
-    done
-    kv lib "$name missing"
-}
-lib_line openssl openssl/ssl.h openssl
-lib_line zlib zlib.h zlib
 
 # --- What CppModel publishes for this OS/arch ----------------------------------------------------
 if [[ "${OFFLINE:-0}" == "1" ]]; then

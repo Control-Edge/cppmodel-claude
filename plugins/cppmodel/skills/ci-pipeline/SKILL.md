@@ -37,14 +37,12 @@ Before asking anything, check the project for:
   project's real build steps (compiler, generator, extra install steps, submodules) - mirror its
   structure rather than guessing from `CMakeLists.txt` alone, and don't remove or replace it unless
   asked to.
-- How `CMakeLists.txt` links OpenSSL/zlib. CppModel's client libraries (used for Workspace API
-  communication) depend on OpenSSL and zlib, so every platform's job needs those dev
-  libraries/packages installed - but check *how* the project links them first: bare library names
-  (`target_link_libraries(... crypto ssl z ...)`, the Unix `-l<name>` convention) only resolve
-  against MinGW-style `.a`/`.dll.a` libraries, not MSVC's differently-named `.lib` files. If the
-  project links this way and hasn't been changed to `find_package(OpenSSL)`, **MSVC is not a
-  viable Windows target for this project's CI** - use a MinGW/MSYS2 toolchain (UCRT64 or CLANG64)
-  on Windows instead, and say so rather than generating an MSVC job that will fail to link.
+- How `CMakeLists.txt` finds the SDK. A 0.8+ project uses `find_package(cppmodel)` and links
+  `cppmodel::cppmodel`; the SDK's shared library carries OpenSSL, zlib and its other dependencies,
+  so no job installs those. A project that still links `CppModelBase`/`crypto ssl z` was written
+  for an SDK before 0.8, whose per-compiler archives CI would have to match: offer
+  `cppmodel:update-dependencies` first, and only generate a pipeline for the old SDK if the user
+  wants to stay on it.
 - `.gitmodules` - if the project has git submodules, note their URL scheme. A private-host
   `ssh://`/`git@` submodule needs its own deploy key/credential set up for CI to check it out -
   every provider below handles this differently (see step 5), and hosted runners never have
@@ -77,29 +75,34 @@ template(s) needed for the chosen platform(s) into the project (a `scripts/` fol
 established convention - match one if it already exists) and adjust the default `dependencies/`
 destination path only if this project's `CMakeLists.txt` points somewhere else. Both templates
 already support `VERSION` (env var on the `.sh`, `-Version` param on the `.ps1`; default `latest`)
-so the pipeline can pin an exact version - see step 3 - and auto-detect compiler/arch with an
-override. Mention to the user that this script was added and needs to be committed. This part is
+so the pipeline can pin an exact version - see step 3 - and pick the archive from the runner's OS
+and architecture (`ARCH=`/`-Arch` overrides it). They install SDK 0.8 or later. An existing script
+that passes `COMPILER=`/`-Platform` was written for older SDKs (see `cppmodel:update-dependencies`
+step 1a). Mention to the user that this script was added and needs to be committed. This part is
 identical regardless of which provider was chosen in step 0.
 
 ## 3. Ask which platform(s), compiler(s), version, and triggers
 
-CppModel publishes separate SDK archives per OS and, for some OSes, per compiler/architecture too,
-and this set changes over time (see `cppmodel:update-dependencies` steps 2-3). Fetch
-`https://download.cppmodel.com/` fresh and parse the actual filenames present rather than assuming
-a fixed set. As of writing that's roughly clang21/gcc12/gcc16 with an x86_64/aarch64 split on
-Linux, UCRT64/CLANG64/MSVC toolchains on Windows, and arm64/x86_64 with no compiler split on
-macOS (matching the install scripts' own built-in defaults) - but treat that as a hint of the
-shape to expect, not the answer; confirm against the live listing before presenting choices.
+CppModel publishes one SDK archive per OS and architecture, and this set changes over time (see
+`cppmodel:update-dependencies` steps 2-3). Fetch `https://download.cppmodel.com/` fresh and parse
+the actual filenames present rather than assuming a fixed set. As of writing (0.8) that's
+`Linux-x86_64` and `Linux-aarch64` (glibc 2.28+, GCC or Clang), `Windows-x64` and `Windows-ARM64`
+(MSVC or clang-cl), and `macOS-universal` (macOS 11+, Apple Clang) - but treat that as a hint of the
+shape to expect, not the answer; confirm against the live listing before presenting choices. MinGW
+isn't supported, so a Windows job uses MSVC or clang-cl. A Linux job's image must have glibc 2.28
+or newer (Debian 10+, Ubuntu 20.04+, RHEL/Rocky 8+; not Alpine).
 
 Ask:
 
 1. **Which OS/platform(s)** to build and test on - within what the chosen provider can actually
    run (see step 4's per-provider runner-availability notes before offering a platform the
    provider can't host). If an install script or existing pipeline from step 1 already targets one
-   platform, say so and ask whether to keep that scope or add more. Rule out MSVC up front per
-   step 1's linkage check if it applies.
-2. **Which compiler/toolchain**, per platform, from what the live listing actually offers for that
-   platform - if only one option exists for a chosen platform, don't ask, just confirm it.
+   platform, say so and ask whether to keep that scope or add more.
+2. **Which compiler(s)**, per platform, from the families that platform supports (GCC/Clang,
+   MSVC/clang-cl, Apple Clang). One archive serves all of them, so a GCC and a Clang job on Linux
+   share the install step; only offer more than one when the user wants the code itself checked
+   against several compilers. If only one option exists for a chosen platform, don't ask, just
+   confirm it.
 3. **Which SDK version to pin** - the version already pinned elsewhere in the project (see
    `cppmodel:update-dependencies` step 1), or `latest` if nothing is pinned yet and the user is
    fine tracking it (worth flagging: CI silently picking up new SDK releases can turn an unrelated
@@ -115,9 +118,10 @@ Not every provider can host every platform the same way - check this **before** 
 
 ### GitHub Actions
 
-`runs-on: ubuntu-latest` / `windows-latest` / `macos-latest` (arm64 - GitHub has been reducing
-Intel-runner availability over time; check current offerings before assuming an Intel image still
-exists). All three are hosted, no extra setup needed to get a runner. This is the best-covered
+`runs-on: ubuntu-latest` / `windows-latest` / `macos-latest` (arm64; the `macOS-universal` SDK runs
+on Intel images too, while they still exist). GitHub also hosts ARM64 Linux and Windows runners
+(`ubuntu-24.04-arm`, `windows-11-arm` as of writing - check current labels and whether the
+repository's plan has them). All are hosted, no extra setup needed to get a runner. This is the best-covered
 provider - see the worked example in step 5.
 
 ### Gitea Actions
@@ -166,17 +170,26 @@ add an explicit `git submodule update --init --recursive` step, with any private
 key added via Repository Settings > SSH keys (or as a secured variable written to `~/.ssh` in the
 step, matching the pattern of an existing Bitbucket pipeline if step 1 found one).
 
-**Toolchain + dependency fetch**: install whatever compiler/build-tool packages the chosen platform
-needs (`apt-get` on Linux/Bitbucket's Ubuntu image, Homebrew on macOS with
-`LIBRARY_PATH=$(brew --prefix openssl@3)/lib:$LIBRARY_PATH` exported so AppleClang finds OpenSSL,
-`msys2/setup-msys2` on GitHub/Gitea Windows or the provider's own MSYS2/Chocolatey equivalent
-elsewhere), then run the step-2 install script with `COMPILER=<name>` (sh) or `-Platform <name>`
-(ps1) set - on MSYS2-based Windows jobs, run the `.ps1` via a `pwsh`/PowerShell step and switch
-later steps to the MSYS2 shell so the toolchain and generator are on PATH.
+**Toolchain + dependency fetch**: install the compiler and build tools the chosen platform needs
+(`apt-get install build-essential cmake ninja-build` or `clang` on Linux/Bitbucket's image, nothing
+or `brew install ninja` on macOS, where Xcode's Apple Clang is preinstalled; the Visual Studio that
+GitHub's Windows images ship, or Build Tools on a self-hosted runner). No OpenSSL, zlib or vcpkg:
+the SDK carries them. Then run the step-2 install script (`bash scripts/install-cppmodel.sh`, or
+the `.ps1` in a `pwsh` step), with `VERSION`/`-Version` set to step 3's pin.
+
+On Windows, either use a Visual Studio generator (`cmake -S . -B build -A x64`, `-A ARM64`, add
+`-T ClangCL` for clang-cl), which finds MSVC itself, or put MSVC on PATH for Ninja first (on
+GitHub/Gitea, e.g. `ilammy/msvc-dev-cmd`; elsewhere, run `vcvarsall.bat` in the job's shell). With
+a Visual Studio generator, build and test with the configuration named: `cmake --build build
+--config Release` and `ctest --test-dir build -C Release`.
 
 **Configure + build**: `cmake -S . -B build [-G Ninja] [-DCMAKE_C_COMPILER=...
 -DCMAKE_CXX_COMPILER=...]` then `cmake --build build`, matching whatever generator/flags this
 project's own build docs or existing pipeline (step 1) already use - don't invent a different one.
+`cppmodel_deploy_runtime()` in the project's `CMakeLists.txt` puts the shared library next to each
+simulation, so `ctest` runs them from the build folder with no `LD_LIBRARY_PATH`/`PATH` setup. If a
+simulation fails to start with a missing `libcppmodel.so.1`/`cppmodel.dll`, that call is missing
+for its target - fix the `CMakeLists.txt`, not the pipeline.
 
 **Test**: `ctest --output-on-failure` (or `--test-dir build`), with credentials injected as CI
 secrets/variables, never literal values in the config:
@@ -187,24 +200,22 @@ secrets/variables, never literal values in the config:
 - Bitbucket: same direct `$CPPMODEL_USERNAME` reference, added as a (Secured) repository or
   workspace variable under Settings > Repository variables.
 
-Never set `CPPMODEL_OFFLINE` in CI. CI runs are submitted to the workspace like any other, and
-their executions are the history later runs are compared against (see `cppmodel:simulations`' "The
-workspace is part of the loop").
+Never set `CPPMODEL_DISCARD_RESULTS` (before 0.8: `CPPMODEL_OFFLINE`) in CI. CI runs are
+submitted to the workspace like any other, and their executions are the history later runs are
+compared against (see `cppmodel:simulations`' "The workspace is part of the loop").
 
 Let `ctest`'s own nonzero exit code fail the job everywhere - don't wrap it in something that
 swallows the exit code.
 
 **Posting inputs or running sweeps (only when the pipeline needs it)**: a job that runs a
 simulation with posted inputs or parameters, or a whole parameter sweep, has no MCP server, so it
-uses the SDK's `cppmodel-tool` (`cppmodel-tool sweep <plan.json> <out>`, SDK 0.6.3+; plan format in
-`cppmodel:parameter-sweep`'s "In CI or a script"). This is the one place the plugin builds the
-tool - interactive work goes through the MCP server and doesn't need it. Build it after the
-dependency fetch, with the same toolchain and generator as the project:
-
-```
-cmake -S dependencies/share/cppmodel/tools -B build/cppmodel-tool
-cmake --build build/cppmodel-tool
-```
+uses the SDK's `cppmodel-tool` (`cppmodel-tool sweep <plan.json> <out>`; plan format in
+`cppmodel:parameter-sweep`'s "In CI or a script"). This is the one place the plugin uses the tool -
+interactive work goes through the MCP server and doesn't need it. From SDK 0.8 it ships prebuilt
+with the SDK, so there's nothing to build: after the dependency fetch it's
+`dependencies/bin/cppmodel-tool` (`dependencies\bin\cppmodel-tool.exe` on Windows). With an SDK
+before 0.8 it ships as source and is built with the project's toolchain:
+`cmake -S dependencies/share/cppmodel/tools -B build/cppmodel-tool && cmake --build build/cppmodel-tool`.
 
 It logs in with the same `CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD` variables (via a `.env` written
 from the secrets at the project root, or `--env <file>`). It consumes posted documents on that

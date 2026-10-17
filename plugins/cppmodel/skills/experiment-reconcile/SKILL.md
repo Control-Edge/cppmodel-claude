@@ -46,6 +46,17 @@ is local work. Short scripts to read them are expected; keep them in scratch, or
 `experiments/<plan-id>/` if they're worth reusing. Simulation results, planned or as-run, still
 come only from the `cppmodel` MCP server or the sweep's output; never from anywhere else.
 
+If the user wants the field runs in the workspace too, so teammates can open them in the UI next
+to the simulations, offer to record each identified attempt with the MCP server's
+`submit_execution` once step 2 has segmented the logs. Use a simulation of its own
+(`field-<plan-id>`), never the planned or production one, so measured and simulated histories
+don't mix. Map operator-side channels to `inputs` and measured channels to `results` under the
+plan's signal names, with `x` in ms from the segment start, put the achieved run conditions in
+`parameters`, set `execution_time` to when the attempt started on the machine (`DD-MM-YYYY
+HH:MM:SS`, from the log's time base when it's absolute), and leave out `CppModel.BinaryFingerprint`
+and `CppModel.StepResult` (its `passed` is then `null`). Call it with `dry_run` first. Do this only when the user asks or agrees; the local logs stay the source for this
+reconciliation either way.
+
 ## 1. Read the logs
 
 Find out what's there before interpreting anything:

@@ -139,18 +139,20 @@ void <name>ModelCyclic(<Name>Model_t *const context, const unsigned long current
 }
 ```
 
-C++ equivalent - a class over `CppModelBase::Model` (`cppmodel/Model.h`), plain public members
+C++ equivalent - a class over `cppmodel::Model` (`cppmodel.hpp`, C++17), plain public members
 instead of separate actuators/sensors/config structs (this is the shape an already-existing C++
 model in this kind of project is likely to use - check one if present and match it instead of this
-exactly). `RunCyclic`'s parameter type has changed between SDK releases: copy it from the
-vendored `dependencies/include/cppmodel/Model.h`. SDK 0.6.x uses `unsigned long long
-simulationTime_ms`, as below; older releases used `double`. With `override`, a mismatch is a
-compile error rather than a silently never-called method:
+exactly; older models derive from `CppModelBase::Model` in `cppmodel/Model.h`, the same class
+under its pre-0.8 names). `Model` is header-only and lives entirely in the project's code: the SDK
+library never sees it. `RunCyclic`'s parameter type has changed between SDK releases: copy it from
+the vendored `dependencies/include/cppmodel/cppmodel.hpp` (`Model.h` before 0.8). Since SDK 0.6 it's
+`unsigned long long simulationTime_ms`, as below; older releases used `double`. With `override`, a
+mismatch is a compile error rather than a silently never-called method:
 
 ```cpp
-#include <cppmodel/Model.h>
+#include <cppmodel.hpp>
 
-class <Name>Model : public CppModelBase::Model
+class <Name>Model : public cppmodel::Model
 {
 public:
     // actuators - commanded by the controller
@@ -228,9 +230,9 @@ cycle loses fractional motion at low speeds and the position never advances. Alw
 C++ equivalent:
 
 ```cpp
-#include <cppmodel/Model.h>
+#include <cppmodel.hpp>
 
-class <Name>Model : public CppModelBase::Model
+class <Name>Model : public cppmodel::Model
 {
 public:
     <ActuatorType> <speed_command> = 0;

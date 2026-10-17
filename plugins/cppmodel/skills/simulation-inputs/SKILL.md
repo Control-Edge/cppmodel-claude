@@ -13,9 +13,10 @@ A simulation reads two kinds of external data:
   in C, or `GetParameter("name", fallback)` in a C++ `Simulation` subclass.
 
 **Posted documents are applied from SDK 0.6.1 on.** SDK 0.6.0 fetches and consumes them without
-applying them, so every run silently uses the fallbacks. Check the vendored version first: look
-for `CppModel_resetData` in `dependencies/include/cppmodel/CModel.h`, which 0.6.1 added. If it's
-older, offer `cppmodel:update-dependencies` before going further.
+applying them, so every run silently uses the fallbacks. Check the vendored version first: from
+0.8 it's `PACKAGE_VERSION` in `dependencies/lib/cmake/cppmodel/cppmodelConfigVersion.cmake`;
+without that file, look for `CppModel_resetData` in `dependencies/include/cppmodel/CModel.h`,
+which 0.6.1 added. If it's older, offer `cppmodel:update-dependencies` before going further.
 
 Before the simulation binary starts, you can post a document with values for them with the
 `cppmodel` MCP server's `set_inputs` tool. Four facts, all confirmed against the live API, shape
