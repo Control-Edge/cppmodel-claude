@@ -38,8 +38,12 @@ Show what you inferred and let the user correct it (step 5).
   `get_binary_runs` (the plan's `model.binaryFingerprint`, `start` = `prediction.index`), or by
   `prediction.executionId` with `get_execution` for a plan without a fingerprint. A newer model
   is evaluated in step 6 as a refinement.
-- **Running anything** needs `.env` (`CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD`) and the `cppmodel`
-  MCP server authenticated (see `cppmodel:simulations`). If either is missing, say so and stop.
+- **Running anything** needs the `cppmodel` MCP server authenticated (see `cppmodel:simulations`)
+  and a login for the binary: `get_run_token` (SDK 0.9.0+), else `.cppmodeltoken` or `.env`
+  (`CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD`). If either is missing, say so and stop. Every run, the
+  rebuilt binary's fingerprint run included, gets the token in the environment of its one command
+  only, as `cppmodel:simulation-testing`'s "Build and run" and `cppmodel:parameter-sweep`
+  describe; never in a file.
 
 Field logs aren't simulation results: they never went through the Workspace API, so reading them
 is local work. Short scripts to read them are expected; keep them in scratch, or in

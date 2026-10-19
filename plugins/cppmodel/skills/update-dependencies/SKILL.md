@@ -192,6 +192,13 @@ old headers include `cppmodel.hpp`, and `CppModelBase`/`CppModelLib` are namespa
 - `Simulate()` throws `cppmodel::Error` when `stepSize_ms` is 0 (it used to loop forever).
 - `CPPMODEL_OFFLINE` is gone; its replacement is `CPPMODEL_DISCARD_RESULTS`. If a script, CI file or
   test property sets either, point it out - the plugin's skills never run without submitting.
+- From 0.9.1, `CPPMODEL_DISCARD_RESULTS` and `runOffline` (C++), `set_run_offline` (C API) and the
+  bindings' `offline` option make the run fail, and so does a run that can't log in to or reach the
+  workspace (it prints a `CppModel workspace:` line; it used to print `Running offline.` and pass).
+  Tests that relied on running offline, such as a `ctest` `ENVIRONMENT
+  "CPPMODEL_DISCARD_RESULTS=true"` property, now fail: point them out and ask before removing the
+  setting, since those runs will then be submitted. Without credentials, the browser sign-in now
+  waits 60 seconds (`CPPMODEL_LOGIN_TIMEOUT`; `0` fails at once) instead of indefinitely.
 
 ## 7. Fix call sites: mechanical changes now, ambiguous ones stop and ask
 

@@ -5,16 +5,25 @@ description: Write, extend, or debug a CppModel-based simulation test, in C (the
 
 ## Requirements: check credentials before running or debugging anything
 
-Running a simulation binary needs a CppModel account (free or licensed) and `.env` at the
-project root with:
+Running a simulation binary needs a CppModel account (free or licensed). The run belongs to the
+account it logs in as, and only that account's runs consume what was posted with `set_inputs`. Use
+the first of these that's available:
 
-```
-CPPMODEL_USERNAME=...
-CPPMODEL_PASSWORD=...
-```
+1. **The `cppmodel` MCP server's `get_run_token`** (SDK 0.9.0+). It returns `access_token`,
+   `expires_in`, `workspace` and `account`: the account the MCP server is connected as, so the run
+   reads that account's posted inputs. No credentials are stored in the project.
+2. **`.cppmodeltoken` or `.env`** at the project root, the latter with:
 
-Check this *before* running a binary, not after something fails. If `.env` is
-missing these, tell the user and stop - do not guess, fabricate, or improvise a workaround (e.g.
+   ```
+   CPPMODEL_USERNAME=...
+   CPPMODEL_PASSWORD=...
+   ```
+
+   Needed without the MCP server (CI, scripts) or with an SDK older than 0.9.0, which ignores the
+   token variable.
+
+Check this *before* running a binary, not after something fails. If neither is available, tell
+the user and stop - do not guess, fabricate, or improvise a workaround (e.g.
 searching the local filesystem for prior results, or writing new code to reconstruct what the API
 would have returned). Writing or editing test/model code doesn't need credentials; running a
 simulation does. Reading its outcome goes through the `cppmodel` MCP server (see
@@ -134,8 +143,30 @@ trusting them.
 cmake --build build --target <SimulationName>
 ```
 
-Then run the binary directly from the build folder - it needs the CppModel credentials in `.env` (see "Requirements"
-above) sourced into its environment:
+Then run the binary directly from the build folder, logged in as "Requirements" above describes.
+With `get_run_token`, call it right before the run and set its values in the environment of that
+one command only:
+
+```
+CPPMODEL_ACCESS_TOKEN=<access_token> CPPMODEL_WORKSPACE=<workspace> CPPMODEL_LOGIN_TIMEOUT=0 ./build/<path-to>/<SimulationName>
+```
+
+`CPPMODEL_LOGIN_TIMEOUT=0` (SDK 0.9.1+) makes a run that can't log in fail at once. Without it, the
+run prints a sign-in link nobody will open and waits 60 seconds. Older SDKs ignore it, and their
+browser sign-in waits indefinitely, so run those with a `timeout`.
+
+Never write the token to a file, `.env`, a script or a log, and don't `export` it. A token lives
+about 5 minutes, and the binary takes it once, at start: it must outlast the whole run, or the run
+can't submit. If `expires_in` is under 60, or under the run's normal runtime plus a margin, wait
+until it has expired and call `get_run_token` again. A run that prints `CPPMODEL_ACCESS_TOKEN is
+expired or invalid; using the saved login instead.` ran as whatever `.cppmodeltoken`/`.env` logs in
+as, possibly another account that didn't consume the posted inputs: say so and rerun with a fresh
+token. A `ctest` run gets the token the same way, for the one command, and each simulation it
+starts takes it again, so the whole `ctest` run must fit in `expires_in`. A run that can't fit in
+one token's lifetime needs `.env`.
+
+Without the tool, source `.env` instead (a saved login in `.cppmodeltoken` is used while it's
+valid):
 
 ```
 set -a && source .env && set +a && ./build/<path-to>/<SimulationName>
@@ -152,8 +183,11 @@ missing `libcppmodel.so.1`/`libcppmodel.dylib`/`cppmodel.dll` was built without
 
 Every run is submitted to the workspace and stays in the simulation's execution history - see
 `cppmodel:simulations`' "The workspace is part of the loop". Never run without submitting
-(`CPPMODEL_DISCARD_RESULTS`, before 0.8 `CPPMODEL_OFFLINE`, or `runOffline`); a run that prints
-`Running offline.` or `(not submitted)` didn't count, so fix the cause and rerun.
+(`CPPMODEL_DISCARD_RESULTS`, before 0.8 `CPPMODEL_OFFLINE`, or `runOffline`). From SDK 0.9.1 these
+make the run fail, and so does a run that can't log in to or reach the workspace: it prints a line
+starting with `CppModel workspace:` that says why. Before 0.9.1 such a run printed `Running
+offline.` and could still pass. Either way, and with `(not submitted)` after the fingerprint, the
+run didn't count, so fix the cause (login, network) and rerun.
 
 A new simulation needs its target in the relevant `CMakeLists.txt` (SDK 0.8+; the project already
 has `find_package(cppmodel)`), registered with `ctest`:

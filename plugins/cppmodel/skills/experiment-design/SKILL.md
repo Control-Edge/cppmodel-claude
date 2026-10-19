@@ -148,8 +148,12 @@ modelled").
 
 ## 3. Predict: build and run the planned simulation
 
-Preconditions: `.env` has `CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD`, and the `cppmodel` MCP server
-is authenticated. If either is missing, say so and stop.
+Preconditions: the `cppmodel` MCP server is authenticated, and the binary can run as its account:
+through `get_run_token` (SDK 0.9.0+), else `.cppmodeltoken` or `.env` with
+`CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD`. If either is missing, say so and stop. Every run of the
+planned simulation, the first one that prints its fingerprint included, gets the token in the
+environment of its one command only, as `cppmodel:simulation-testing`'s "Build and run" and
+`cppmodel:parameter-sweep` describe; never in a file.
 
 1. **Build the planned simulation** under `experiments/<plan-id>/`, named `planned-<plan-id>`, as
    `cppmodel:simulation-testing` describes (`cppmodel:language` for a new file). It wires the

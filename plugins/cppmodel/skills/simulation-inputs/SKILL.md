@@ -59,8 +59,10 @@ Document format (the `set_inputs` arguments besides `simulation`):
   `get_pending_inputs`, `set_inputs`, `get_latest_result` and `get_binary_runs`, used below. The
   check in step 5 needs a server version whose execution tools take `expected`. The simulation
   doesn't need to have run before for a post to be accepted.
-- `.env` at the project root with `CPPMODEL_USERNAME` and `CPPMODEL_PASSWORD`, to run the binary;
-  see `cppmodel:simulation-testing`. If they're missing, tell the user and stop.
+- A login to run the binary as the account the MCP server is connected as: `get_run_token` (SDK
+  0.9.0+), else `.cppmodeltoken` or `.env` at the project root with `CPPMODEL_USERNAME` and
+  `CPPMODEL_PASSWORD`; see `cppmodel:simulation-testing`'s "Requirements". If there's none, tell the
+  user and stop.
 
 ## 1. Find every input and parameter name
 
@@ -145,13 +147,18 @@ Ask the user which.
 
 ## 4. Post, then run immediately
 
-Call `set_inputs` with the saved document (without `dry_run`). Build and run the binary straight
-away, as `cppmodel:simulation-testing` describes ("Build and run"), with `.env` sourced. Any other
+Call `set_inputs` with the saved document (without `dry_run`). Build the binary, then call
+`get_run_token` and run it straight away with `CPPMODEL_ACCESS_TOKEN=<access_token>
+CPPMODEL_WORKSPACE=<workspace>` set for that one command only, as `cppmodel:simulation-testing`
+describes ("Build and run"). Never store the token in a file. Without the tool, run it with `.env`
+sourced. The token makes the run belong to the account `set_inputs` posted for; a run as another
+account doesn't consume the document. Any other
 execution of this simulation in between would consume the document instead: a `ctest` run, a CI job
 on the same account, or a run started from the web UI. Check none is running.
 
-If the binary's output says `Could not reach API. Running offline.`, it never fetched the document.
-Say so and stop.
+If the binary's output has a line starting with `CppModel workspace:` (SDK 0.9.1+; before it,
+`Could not reach API. Running offline.`), it couldn't log in to or reach the workspace and never
+fetched the document. Say so, with that line, and stop.
 
 ## 5. Confirm the values were applied, then report
 

@@ -100,9 +100,10 @@ work: each execution keeps the inputs and parameters it read and every output se
 by id later. So:
 
 - **Always run online.** Never set `CPPMODEL_DISCARD_RESULTS` (before SDK 0.8: `CPPMODEL_OFFLINE`),
-  never pass `runOffline`, and never run offline to save time or avoid the API. A run whose
-  output says `Could not reach API. Running offline.`, or whose fingerprint line ends in
-  `(not submitted)`, produced nothing anyone can look at or compare later. Treat it as a run that
+  never pass `runOffline`, and never run offline to save time or avoid the API. From SDK 0.9.1
+  any of these makes the run fail. A run whose output has a line starting with `CppModel
+  workspace:` (SDK 0.9.1+; before it, `Could not reach API. Running offline.`), or whose
+  fingerprint line ends in `(not submitted)`, produced nothing anyone can look at or compare later. Treat it as a run that
   didn't happen: fix the cause (`.env`, network, login) and run again.
 - **Compare runs through the history.** Before vs after a change, one scenario against another, a
   sweep against an earlier sweep: `list_executions` finds them, `get_execution` fetches each by id,

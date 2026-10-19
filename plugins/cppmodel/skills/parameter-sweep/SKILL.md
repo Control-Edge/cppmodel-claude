@@ -41,8 +41,9 @@ or a script" at the end. Don't build it for a sweep run from here.
 
 ## 1. Preconditions
 
-- `.env` has `CPPMODEL_USERNAME` and `CPPMODEL_PASSWORD` (see `cppmodel:simulation-testing`'s
-  "Requirements"). If they're missing, stop and say so.
+- A login to run the binary as the MCP server's account: `get_run_token` (SDK 0.9.0+), else
+  `.cppmodeltoken` or `.env` with `CPPMODEL_USERNAME` and `CPPMODEL_PASSWORD` (see
+  `cppmodel:simulation-testing`'s "Requirements"). If there's none, stop and say so.
 - The simulation binary is **built and up to date**. Build it as `cppmodel:simulation-testing`
   describes, before the sweep and not during it.
 - **Nothing else runs this simulation on the same account during the sweep**: no `ctest`, no CI
@@ -110,12 +111,24 @@ document. Show the user the run list before running anything.
 For each run, in order, post and run straight away:
 
 1. `set_inputs` with `runs/NNN.json`.
-2. Run the binary from the project root with `.env` sourced (as `cppmodel:simulation-testing`'s
-   "Build and run" describes), with a time limit a few times its normal runtime, keeping the log:
+2. Run the binary from the project root with the run token set for that one command (as
+   `cppmodel:simulation-testing`'s "Build and run" describes), with a time limit a few times its
+   normal runtime, keeping the log:
 
    ```
-   timeout 300 ./build/<path>/<SimulationBinary> > <out>/runs/NNN.log 2>&1; echo $?
+   CPPMODEL_ACCESS_TOKEN=<access_token> CPPMODEL_WORKSPACE=<workspace> CPPMODEL_LOGIN_TIMEOUT=0 timeout 300 ./build/<path>/<SimulationBinary> > <out>/runs/NNN.log 2>&1; echo $?
    ```
+
+   Without `get_run_token`, source `.env` instead.
+
+A token lives only about 5 minutes, so fetch a fresh one per batch of runs: call `get_run_token`
+before the first run, note when it expires (`date +%s` plus `expires_in`), and reuse it only while
+it has more than a minute plus one run's normal runtime left. Then call it again; if its
+`expires_in` is still under 60, wait until it has expired first. The tool allows about 10 calls a
+minute, so don't call it per run when runs are short. Never put the token in `sweep.json`, a run
+document, a log or a script. A log with `CPPMODEL_ACCESS_TOKEN is expired or invalid` means the run
+used another login and may not have consumed its document: stop as for a run that submitted
+nothing.
 
    (On Windows, start it from PowerShell with `Start-Process -RedirectStandardOutput` and stop it
    after `Wait-Process -Timeout`.) Note the exit code in `sweep.json`: `0` passed, nonzero failed
@@ -130,7 +143,8 @@ default run, so stop.
 
 **Stop the sweep** and go to step 6 with the runs made so far when:
 
-- **A run submitted no execution.** Its log says `Could not reach API. Running offline.`, its
+- **A run submitted no execution.** Its log has a line starting with `CppModel workspace:` (SDK
+  0.9.1+; before it, `Could not reach API. Running offline.`), its
   fingerprint line ends in `(not submitted)`, or it has no fingerprint line at all (a timeout
   included).
 - **The binary was rebuilt mid-sweep.** The log's fingerprint differs from the first run's. Later

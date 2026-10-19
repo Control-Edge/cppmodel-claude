@@ -202,7 +202,12 @@ secrets/variables, never literal values in the config:
 
 Never set `CPPMODEL_DISCARD_RESULTS` (before 0.8: `CPPMODEL_OFFLINE`) in CI. CI runs are
 submitted to the workspace like any other, and their executions are the history later runs are
-compared against (see `cppmodel:simulations`' "The workspace is part of the loop").
+compared against (see `cppmodel:simulations`' "The workspace is part of the loop"). From SDK 0.9.1
+it makes every run fail anyway.
+
+Set `CPPMODEL_LOGIN_TIMEOUT: 0` (as a plain value, not a secret) next to the credentials (SDK
+0.9.1+). With a missing or wrong secret, a run then fails at once with a `CppModel workspace:` line
+instead of printing a browser sign-in link and waiting 60 seconds per simulation.
 
 Let `ctest`'s own nonzero exit code fail the job everywhere - don't wrap it in something that
 swallows the exit code.
