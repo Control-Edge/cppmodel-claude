@@ -3,8 +3,8 @@
 # Windows only; use install-cppmodel.sh on Linux/macOS.
 #
 # Installs CppModel SDK 0.8 or later: one archive per architecture (CppModel-<version>-Windows-x64.zip,
-# -Windows-ARM64.zip), used with MSVC or clang-cl. MinGW (MSYS2 UCRT64/CLANG64) isn't supported from
-# 0.8 on. The project finds it with find_package(cppmodel) (CMAKE_PREFIX_PATH).
+# -Windows-ARM64.zip), used with MSVC or clang-cl, and on x64 also with MSYS2's MinGW toolchains
+# (UCRT64, CLANG64, MINGW64). The project finds it with find_package(cppmodel) (CMAKE_PREFIX_PATH).
 [CmdletBinding()]
 param(
     [string]$DepsDir,
@@ -21,10 +21,10 @@ $ProjectRoot = Split-Path -Parent $PSScriptRoot
 if (-not $DepsDir) { $DepsDir = Join-Path $ProjectRoot "dependencies" }
 
 if ($Platform) {
-    if ($Platform -in "UCRT64", "CLANG64", "MINGW64") {
-        throw "-Platform ${Platform}: MinGW isn't supported from SDK 0.8 on. Build with MSVC or clang-cl."
+    if ($Platform -in "UCRT64", "CLANG64", "MINGW64" -and $Arch -eq "ARM64") {
+        throw "-Platform ${Platform}: MinGW is supported on x64 only. Build ARM64 with MSVC or clang-cl."
     }
-    Write-Warning "-Platform is ignored - from SDK 0.8 one archive serves MSVC and clang-cl."
+    Write-Warning "-Platform is ignored - from SDK 0.8 one archive serves MSVC, clang-cl and MinGW."
 }
 
 if ($Version -ne "latest") {

@@ -64,8 +64,8 @@ DEPS_DIR=<step-5 staging dir> VERSION=<step-3 version> ./path/to/install-cppmode
 A script written for SDKs before 0.8 builds per-compiler names (`Linux-x86_64-gcc12`,
 `Windows-UCRT64`, a `COMPILER`/`-Platform` argument) that 0.8+ doesn't publish, so it can't fetch
 the new SDK. When moving to 0.8+, offer to replace it with the plugin's current template (same
-path, same `DEPS_DIR`/`VERSION` interface; `COMPILER` and `-Platform` are accepted and ignored, and
-MinGW platforms are refused). It's a committed file other people and CI run, so confirm first, and
+path, same `DEPS_DIR`/`VERSION` interface; `COMPILER` and `-Platform` are accepted and ignored, so
+a MinGW `-Platform UCRT64` fetches the `Windows-x64` archive). It's a committed file other people and CI run, so confirm first, and
 note its callers for step 9.
 
 Point `DEPS_DIR`/`-DepsDir` at the step-4/5 **staging** location, not the real `dependencies/` -
@@ -86,12 +86,13 @@ The OS you're running on may differ from the OS a CI pipeline builds for; keep t
 step 9).
 
 The compiler no longer selects the archive, but it must be a supported one: GCC or Clang on Linux
-(glibc 2.28+), MSVC or clang-cl on Windows, Apple Clang on macOS 11+. **MinGW (MSYS2 UCRT64/CLANG64)
-is not supported from 0.8.** If the project builds with MinGW (`CMakeCache.txt`'s
-`CMAKE_CXX_COMPILER` under `msys64`, or a CI job using `msys2/setup-msys2`), moving to 0.8 means
-moving that build to MSVC or clang-cl. That's the user's decision: say so, and ask before going
-further (`cppmodel:setup-environment` installs the toolchain). Staying on the last pre-0.8 release
-is the alternative.
+(glibc 2.28+), MSVC or clang-cl on Windows, Apple Clang on macOS 11+. MSYS2's MinGW toolchains
+(UCRT64, CLANG64, MINGW64) are supported on Windows x64 and use the same `Windows-x64` archive as
+MSVC: only C crosses the DLL boundary and the DLL carries its own CRT, and GNU ld and lld link
+`cppmodel.lib` like any import library. A project that builds with MinGW (`CMakeCache.txt`'s
+`CMAKE_CXX_COMPILER` under `msys64`, or a CI job using `msys2/setup-msys2`) keeps its toolchain;
+only the archive name changes (`Windows-UCRT64`/`Windows-CLANG64` become `Windows-x64`). MinGW on
+Windows ARM64 isn't supported.
 
 ## 3. Find the latest version for that platform
 
@@ -259,12 +260,12 @@ silently do**, to also:
   version, keeping the platform the pin already used, which may differ from the one detected for
   local use in step 2. When crossing 0.8, the suffix changes too: `Linux-<arch>-<compiler>` becomes
   `Linux-<arch>`, `Windows-MSVC`/`Windows-CLANGCL` become `Windows-x64`, `macOS-arm64` becomes
-  `macOS-universal`, and `Windows-UCRT64`/`CLANG64` jobs have no 0.8 archive (step 2's MinGW
-  decision).
+  `macOS-universal`, and `Windows-UCRT64`/`Windows-CLANG64` become `Windows-x64` too (the MinGW
+  job keeps its MSYS2 toolchain).
 - When crossing 0.8, also clean up the pipeline: drop the OpenSSL/zlib/vcpkg install steps, the
   `COMPILER=`/`-Platform` arguments to the install script, and any step that builds
-  `cppmodel-tool` from `share/cppmodel/tools` (use `dependencies/bin/cppmodel-tool`); on Windows,
-  replace the MSYS2 setup with an MSVC environment. `cppmodel:ci-pipeline` step 5 shows the 0.8
+  `cppmodel-tool` from `share/cppmodel/tools` (use `dependencies/bin/cppmodel-tool`). An MSYS2 job
+  keeps its MSYS2 setup but no longer needs OpenSSL/zlib packages. `cppmodel:ci-pipeline` step 5 shows the 0.8
   shape.
 - Update any version number mentioned in project docs (e.g. `README.md`) and the
   `find_package(cppmodel <version>)` minimum, if the project relies on something new.

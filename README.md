@@ -63,7 +63,7 @@ A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
   library, installed compilers/toolchains and build tools, compares them with the SDK builds
   CppModel actually publishes (one per OS and architecture from SDK 0.8), and lets you pick an
   installed supported compiler or install one. For an unsupported platform or compiler (such as
-  MinGW) it drafts a request to support@cedge.se listing what is available for your OS. Then
+  MinGW on Windows ARM64) it drafts a request to support@cedge.se listing what is available for your OS. Then
   installs what's missing plus the SDK and verifies a build.
 
 ## Install
@@ -95,9 +95,9 @@ CPPMODEL_PASSWORD=...
 
 Building simulations needs the CppModel SDK. From 0.8 it is one self-contained shared library per
 OS and architecture (Linux x86_64/aarch64 with glibc 2.28+, Windows x64/ARM64, macOS 11+
-universal), used with GCC or Clang, MSVC or clang-cl, or Apple Clang; MinGW isn't supported. The
-skills set up 0.8+ projects with `find_package(cppmodel)`, and `cppmodel:update-dependencies`
-moves older projects over.
+universal), used with GCC or Clang, MSVC or clang-cl (on x64 also MSYS2's MinGW toolchains), or
+Apple Clang. The skills set up 0.8+ projects with `find_package(cppmodel)`, and
+`cppmodel:update-dependencies` moves older projects over.
 
 Running simulations with posted inputs (`cppmodel:simulation-inputs`) and parameter sweeps
 (`cppmodel:parameter-sweep`) also needs:

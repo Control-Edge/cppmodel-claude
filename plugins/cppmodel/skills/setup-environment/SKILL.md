@@ -10,8 +10,8 @@ Building a CppModel project needs three things on the machine:
 1. **A supported C/C++ compiler.** From SDK 0.8 the SDK is one self-contained shared library per
    OS and architecture, and its only binary interface is C. Any compiler of the platform's
    supported family works with the same archive: GCC or Clang on Linux, MSVC or clang-cl on
-   Windows, Apple Clang on macOS. C++ simulations need C++17. MinGW (MSYS2 UCRT64/CLANG64) isn't
-   supported.
+   Windows (x64 also MSYS2's MinGW toolchains: UCRT64, CLANG64, MINGW64), Apple Clang on macOS.
+   C++ simulations need C++17.
 2. **Build tools**: CMake 3.21+ and a generator (Ninja, Make or Visual Studio), plus git, curl,
    and tar/unzip for fetching.
 3. **The CppModel SDK itself**, extracted into the project's `dependencies/` folder. OpenSSL, zlib,
@@ -62,7 +62,7 @@ Filter the `published=` tags down to this OS. Tag shapes from 0.8 on:
 | OS | Tag | Requirements | Compilers |
 |---|---|---|---|
 | Linux | `Linux-x86_64`, `Linux-aarch64` | glibc 2.28+ | GCC, Clang |
-| Windows | `Windows-x64`, `Windows-ARM64` | - | MSVC, clang-cl |
+| Windows | `Windows-x64`, `Windows-ARM64` | - | MSVC, clang-cl; on x64 also MinGW (MSYS2 UCRT64, CLANG64, MINGW64) |
 | macOS | `macOS-universal` (arm64 + x86_64) | macOS 11+ | Apple Clang |
 
 Treat that table as a hint about the shape, not the answer. Always use the live tags from step 1.
@@ -75,8 +75,8 @@ Then check, in this order:
   distributions such as Alpine, glibc older than 2.28 (e.g. CentOS 7, Ubuntu 18.04), FreeBSD, and
   macOS 10.x. No compiler choice can fix that. Go straight to step 3's "request support" path.
 - **The compilers.** Each detected compiler is **supported** when its family is listed for the
-  OS, or **unsupported** otherwise (on Windows: the MinGW toolchains `UCRT64`, `CLANG64`,
-  `MINGW64`). Versions don't need to match anything. Only C++17 matters: any GCC or Clang a
+  OS and architecture, or **unsupported** otherwise (on Windows ARM64: the MinGW toolchains; on
+  x64 the probe's `UCRT64`, `CLANG64` and `MINGW64` toolchains are supported). Versions don't need to match anything. Only C++17 matters: any GCC or Clang a
   glibc-2.28 distribution ships is new enough, and so is any Visual Studio 2019 or later. A C-only
   project needs nothing beyond a C compiler of a supported family.
 
@@ -93,22 +93,25 @@ Start by showing a short summary:
 Then ask with `AskUserQuestion`. Build the options from what was actually found, most suitable
 first, and put `(Recommended)` on the one you'd pick:
 
-1. **Use an installed supported compiler.** With several (e.g. GCC and Clang, or MSVC and
-   clang-cl), make each one its own option. Don't pick between them silently.
+1. **Use an installed supported compiler.** With several (e.g. GCC and Clang, or MSVC, clang-cl
+   and MSYS2 UCRT64), make each one its own option. Don't pick between them silently.
 2. **Install a supported compiler.** Offer this when none is installed. Name the one that's easiest
    to get on this OS (the distro's own `g++`, Visual Studio Build Tools, Xcode's command line tools)
    and the exact package.
 3. **Request support for my compiler/platform.** Offer this whenever the platform has no archive,
-   or the only installed compilers are unsupported (e.g. MinGW only) and the user wants to keep
+   or the only installed compilers are unsupported (e.g. MinGW only on Windows ARM64) and the user wants to keep
    using them.
 
 Special cases:
 
 - If there's exactly one supported compiler and every tool is present, skip the question. State
   the choice and continue to step 5.
-- Windows with only MinGW installed: say plainly that SDK 0.8 dropped MinGW, and recommend
-  installing Visual Studio Build Tools (MSVC, optionally with clang-cl). Offer the support request
-  as the alternative.
+- Windows x64 with only MSYS2 installed: its UCRT64, CLANG64 and MINGW64 toolchains use the same
+  `Windows-x64` archive as MSVC (only C crosses the DLL boundary, and the DLL carries its own CRT),
+  so use one of them. Prefer UCRT64 (or CLANG64) over MINGW64, which uses the old msvcrt.
+- Windows ARM64 with only MinGW installed: there's no MinGW support on ARM64. Recommend installing
+  Visual Studio Build Tools (MSVC, optionally with clang-cl), and offer the support request as the
+  alternative.
 
 ### The "request support" path
 
@@ -170,6 +173,12 @@ install `LLVM.LLVM`. CMake and Ninja come with the workload, or as `Kitware.CMak
 Build from a Developer PowerShell/Command Prompt so `cl`/`clang-cl` are on PATH, or use a Visual
 Studio generator, which finds MSVC itself. On Windows on ARM, install the ARM64 build tools
 component to build native ARM64 binaries.
+
+**Windows x64 (MSYS2 MinGW):** in the MSYS2 shell for the chosen environment,
+`pacman -S --needed mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja`
+(`mingw-w64-clang-x86_64-*` for CLANG64, `mingw-w64-x86_64-*` for MINGW64). MSYS2 itself is
+`winget install MSYS2.MSYS2`. Build from that environment's shell so its compiler and CMake are on
+PATH.
 
 After installing, re-run the step-1 probe and confirm the chosen compiler and tools now show up.
 
@@ -245,7 +254,9 @@ cmake --build build
 
 On Windows with a Visual Studio generator, pass `-A x64` or `-A ARM64` instead of the compiler
 (and `-T ClangCL` for clang-cl); executables then land in `build/<Config>/`, and `ctest` needs
-`-C <Config>`.
+`-C <Config>`. With MSYS2 MinGW, run the Ninja line from that environment's shell; pass
+`CMAKE_PREFIX_PATH` as a Windows path (`-DCMAKE_PREFIX_PATH="$(cygpath -m "$PWD/dependencies")"`)
+when it isn't set in `CMakeLists.txt`.
 
 Follow the project's own generator/preset if it has one (`CMakePresets.json`, its README). A
 project with no simulation yet can only configure, which still proves that `find_package(cppmodel)`

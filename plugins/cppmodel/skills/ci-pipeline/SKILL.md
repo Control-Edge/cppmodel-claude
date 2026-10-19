@@ -88,8 +88,9 @@ CppModel publishes one SDK archive per OS and architecture, and this set changes
 the actual filenames present rather than assuming a fixed set. As of writing (0.8) that's
 `Linux-x86_64` and `Linux-aarch64` (glibc 2.28+, GCC or Clang), `Windows-x64` and `Windows-ARM64`
 (MSVC or clang-cl), and `macOS-universal` (macOS 11+, Apple Clang) - but treat that as a hint of the
-shape to expect, not the answer; confirm against the live listing before presenting choices. MinGW
-isn't supported, so a Windows job uses MSVC or clang-cl. A Linux job's image must have glibc 2.28
+shape to expect, not the answer; confirm against the live listing before presenting choices. On
+`Windows-x64`, MSYS2's MinGW toolchains (UCRT64 with GCC, CLANG64, MINGW64) use the same archive as
+MSVC; `Windows-ARM64` is MSVC or clang-cl only. A Linux job's image must have glibc 2.28
 or newer (Debian 10+, Ubuntu 20.04+, RHEL/Rocky 8+; not Alpine).
 
 Ask:
@@ -99,7 +100,7 @@ Ask:
    provider can't host). If an install script or existing pipeline from step 1 already targets one
    platform, say so and ask whether to keep that scope or add more.
 2. **Which compiler(s)**, per platform, from the families that platform supports (GCC/Clang,
-   MSVC/clang-cl, Apple Clang). One archive serves all of them, so a GCC and a Clang job on Linux
+   MSVC/clang-cl/MinGW, Apple Clang). One archive serves all of them, so a GCC and a Clang job on Linux
    share the install step; only offer more than one when the user wants the code itself checked
    against several compilers. If only one option exists for a chosen platform, don't ask, just
    confirm it.
@@ -182,6 +183,12 @@ On Windows, either use a Visual Studio generator (`cmake -S . -B build -A x64`, 
 GitHub/Gitea, e.g. `ilammy/msvc-dev-cmd`; elsewhere, run `vcvarsall.bat` in the job's shell). With
 a Visual Studio generator, build and test with the configuration named: `cmake --build build
 --config Release` and `ctest --test-dir build -C Release`.
+
+A MinGW job on GitHub/Gitea uses `msys2/setup-msys2@v2` with `msystem: UCRT64` (or `CLANG64`,
+`MINGW64`) and `pacboy: toolchain:p cmake:p ninja:p`, then runs its build steps with
+`shell: msys2 {0}`. Run the install script in its own `pwsh` step; when configuring from the MSYS2
+shell, pass the SDK path as a Windows path (`-DCMAKE_PREFIX_PATH="$(cygpath -m "$PWD/dependencies")"`)
+if `CMakeLists.txt` doesn't set it.
 
 **Configure + build**: `cmake -S . -B build [-G Ninja] [-DCMAKE_C_COMPILER=...
 -DCMAKE_CXX_COMPILER=...]` then `cmake --build build`, matching whatever generator/flags this

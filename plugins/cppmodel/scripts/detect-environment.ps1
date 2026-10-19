@@ -1,6 +1,6 @@
 # Read-only probe used by the cppmodel:setup-environment skill: reports the Windows version,
-# architecture, installed toolchains (MSVC and clang-cl, which the SDK supports; MSYS2/MinGW, which
-# it doesn't from 0.8 on), build tools, plus which SDK builds download.cppmodel.com currently
+# architecture, installed toolchains (MSVC and clang-cl; MSYS2's MinGW UCRT64/CLANG64/MINGW64, which
+# use the same x64 DLL), build tools, plus which SDK builds download.cppmodel.com currently
 # publishes. From SDK 0.8 the SDK is one self-contained DLL per architecture (OpenSSL and zlib
 # linked in), so no libraries are probed. Installs nothing. Windows only; use
 # detect-environment.sh on Linux/macOS.
@@ -34,7 +34,7 @@ function Get-FirstVersion([string]$text) {
     return "unknown"
 }
 
-# --- MSYS2 / MinGW (not supported by SDK 0.8+; reported so the skill can say so) ---------------
+# --- MSYS2 / MinGW (supported on x64 with the same Windows-x64 archive) ------------------------
 $msysCandidates = @($Msys2Root, "C:\msys64", "$env:USERPROFILE\scoop\apps\msys2\current", "C:\tools\msys64") |
     Where-Object { $_ -and (Test-Path (Join-Path $_ "usr\bin\pacman.exe")) }
 $msys = $msysCandidates | Select-Object -First 1
