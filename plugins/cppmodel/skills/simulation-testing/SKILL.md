@@ -182,12 +182,16 @@ missing `libcppmodel.so.1`/`libcppmodel.dylib`/`cppmodel.dll` was built without
 `cppmodel_deploy_runtime(<target>)` (below).
 
 Every run is submitted to the workspace and stays in the simulation's execution history - see
-`cppmodel:simulations`' "The workspace is part of the loop". Never run without submitting
-(`CPPMODEL_DISCARD_RESULTS`, before 0.8 `CPPMODEL_OFFLINE`, or `runOffline`). From SDK 0.9.1 these
-make the run fail, and so does a run that can't log in to or reach the workspace: it prints a line
-starting with `CppModel workspace:` that says why. Before 0.9.1 such a run printed `Running
-offline.` and could still pass. Either way, and with `(not submitted)` after the fingerprint, the
-run didn't count, so fix the cause (login, network) and rerun.
+`cppmodel:simulations`' "The workspace is part of the loop". Never set `CPPMODEL_DISCARD_RESULTS`
+(removed in 0.10.0; before 0.8 `CPPMODEL_OFFLINE`) or `runOffline`. A run that can't log in to or
+reach the workspace fails and prints a line starting with `CppModel workspace:` that says why (SDK
+0.9.1+; before it, `Running offline.`, and it could still pass). Such a run didn't count, so fix the
+cause (login, network) and rerun.
+
+The one exception is a local run (SDK 0.10.0+), `--inputs <file> --results <out.json>`, while
+iterating (see `cppmodel:simulations`' "Local runs"). Its `(not submitted)` is expected, and an
+iteration always ends with a recorded run. Never add `--results` to a `ctest` registration or a CI
+step.
 
 A new simulation needs its target in the relevant `CMakeLists.txt` (SDK 0.8+; the project already
 has `find_package(cppmodel)`), registered with `ctest`:
@@ -215,7 +219,7 @@ debugging or tuning. Those changes don't need documentation until the solution i
 
 The binary's stdout gives nothing to work with beyond pass/fail and a `UI: https://...` link -
 there is no local log, file, or cache holding the per-cycle signal trace. It only exists behind the
-Workspace API. Use the `cppmodel` MCP server's `get_latest_result` (see `cppmodel:simulations`)
+Workspace API, or, for a local run (SDK 0.10.0+), in the file its `--results` names. Use the `cppmodel` MCP server's `get_latest_result` (see `cppmodel:simulations`)
 to pull the full execution trace: every `CppModel_getInput` signal under `inputs`, every
 `CppModel_getParameter` under `parameters`, and every `CppModel_setOutput` signal (including
 `CppModel.StepResult` and `internalStepNumber`) under `results`, each series as `{label, x, y}`
@@ -235,7 +239,12 @@ Workflow:
    was actually in - usually enough to tell whether the assertion's logic is wrong, its timing is
    wrong, or the code under test has a real bug.
 4. Fix, rebuild, rerun, re-fetch, and confirm the trace is clean end to end (`StepResult` never
-   dips to 0 anywhere) - not just that the process exit code was 0.
+   dips to 0 anywhere) - not just that the process exit code was 0. With SDK 0.10.0+, the tries
+   in between can run without submitting: add `--results <out.json>` and read the trace from that
+   file. Add `--inputs <file>` with the failing execution's `inputs` and `parameters` when it ran
+   with values other than the fallbacks. Once a fix looks right, do one recorded run the way the
+   failing one ran (plain, or with that `--inputs <file>`), and confirm the clean trace from that
+   execution.
 5. Compare the new execution with the failing one through the history (`list_executions`, then
    `get_execution` for both ids with the same `signals`), so the fix is shown to change what it
    was meant to change and nothing else. Don't add a temporary test or extra outputs to collect

@@ -1,6 +1,6 @@
 ---
 name: cppmodel:simulation-inputs
-description: Run a CppModel simulation with specific inputs (time series read by CppModel_getInput* / inputs["..."]) and parameters (constants read by CppModel_getParameter* / parameters["..."]) without editing or rebuilding it, by posting them through the cppmodel MCP server's set_inputs right before a run. Finds the exact names the simulation reads, builds and validates the input document, posts it, runs the simulation, and confirms from the execution record that the values were really applied. Use when asked to run a simulation with given inputs/parameters or a named scenario, to try "what if <parameter> = X", or to see which inputs and parameters a simulation reads. For many runs over a range of values, use cppmodel:parameter-sweep instead.
+description: Run a CppModel simulation with specific inputs (time series read by CppModel_getInput* / inputs["..."]) and parameters (constants read by CppModel_getParameter* / parameters["..."]) without editing or rebuilding it: passed to the binary with --inputs <file> (SDK 0.10.0+), or posted through the cppmodel MCP server's set_inputs right before a run with older SDKs. Finds the exact names the simulation reads, builds and validates the input document, runs the simulation with it (exploring locally first if useful), and confirms from the execution record that the values were really applied. Use when asked to run a simulation with given inputs/parameters or a named scenario, to try "what if <parameter> = X", or to see which inputs and parameters a simulation reads. For many runs over a range of values, use cppmodel:parameter-sweep instead.
 ---
 
 ## What this is
@@ -18,9 +18,12 @@ applying them, so every run silently uses the fallbacks. Check the vendored vers
 without that file, look for `CppModel_resetData` in `dependencies/include/cppmodel/CModel.h`,
 which 0.6.1 added. If it's older, offer `cppmodel:update-dependencies` before going further.
 
-Before the simulation binary starts, you can post a document with values for them with the
-`cppmodel` MCP server's `set_inputs` tool. Four facts, all confirmed against the live API, shape
-everything below:
+**From SDK 0.10.0, pass the document to the binary instead of posting it:** `<binary> --inputs
+<file>` reads it from the file and submits as usual, so no other run can consume it first. The
+same file with `--results <out.json>` added is a local run, which doesn't submit (see
+`cppmodel:simulations`' "Local runs"). With an older SDK, post the document with the `cppmodel`
+MCP server's `set_inputs` tool before the binary starts. Four facts, all confirmed against the live
+API, shape everything below. The first applies to posted documents only:
 
 1. **The document is one-shot and per account.** The account's next execution of the simulation
    consumes it; afterwards `get_pending_inputs` finds nothing until something is posted again.
@@ -94,8 +97,9 @@ authoring anything.
 
 Call `get_pending_inputs`. The normal answer is that nothing is pending. If a document comes back,
 something on this account (the web UI, an interrupted run or sweep, another session) posted it for
-the next execution and it hasn't been consumed. Save it to a scratch file and show it to the user before replacing it, since posting
-overwrites it.
+the next execution and it hasn't been consumed. Save it to a scratch file and show it to the user
+before running: posting overwrites it, and a recorded run with `--inputs` consumes it without using
+it.
 
 ## 3. Author and validate the document
 
@@ -145,7 +149,29 @@ Save the document as a file:
 
 Ask the user which.
 
-## 4. Post, then run immediately
+## 4. Run with the document
+
+### SDK 0.10.0+: pass the file
+
+Build the binary, call `get_run_token`, and run it with the saved file, with the token set for that
+one command only, as `cppmodel:simulation-testing` describes ("Build and run"):
+
+```
+CPPMODEL_ACCESS_TOKEN=<access_token> CPPMODEL_WORKSPACE=<workspace> CPPMODEL_LOGIN_TIMEOUT=0 ./build/<path>/<SimulationBinary> --inputs <file>
+```
+
+Nothing else can consume the file, so other runs of the simulation meanwhile don't matter. The run
+still consumes a document pending from `set_inputs` when it submits. Step 2 saved that document, if
+there was one.
+
+**When the user wants to try several values first**, e.g. to find the one that meets a requirement,
+explore with local runs: the same command with `--results <scratch>/out-<n>.json` added, one
+document file per try. Read each results file directly, change the document, and run again.
+Nothing reaches the workspace. When the values are settled, run the chosen file once more without
+`--results`. That recorded run is the result. Never report a local run's numbers as the
+scenario's outcome (`cppmodel:simulations`' "Local runs").
+
+### Older SDKs: post, then run immediately
 
 Call `set_inputs` with the saved document (without `dry_run`). Build the binary, then call
 `get_run_token` and run it straight away with `CPPMODEL_ACCESS_TOKEN=<access_token>
@@ -156,9 +182,10 @@ account doesn't consume the document. Any other
 execution of this simulation in between would consume the document instead: a `ctest` run, a CI job
 on the same account, or a run started from the web UI. Check none is running.
 
-If the binary's output has a line starting with `CppModel workspace:` (SDK 0.9.1+; before it,
-`Could not reach API. Running offline.`), it couldn't log in to or reach the workspace and never
-fetched the document. Say so, with that line, and stop.
+Either way, if the binary's output has a line starting with `CppModel workspace:` (SDK 0.9.1+;
+before it, `Could not reach API. Running offline.`), it couldn't log in to or reach the workspace
+and submitted nothing. Say so, with that line, and stop. A line starting with `CppModel: --inputs`
+means the file is unusable. It names the problem, so fix the file and run again.
 
 ## 5. Confirm the values were applied, then report
 
@@ -169,15 +196,16 @@ reached the workspace: there's nothing to check, so say so and stop. An SDK from
 records the fingerprint without printing it. Take it from `CppModel.BinaryFingerprint` in
 `get_latest_result`'s `parameters` instead.
 
-Fetch the run and check it in one call, passing the posted document (`{inputs, parameters}`, as
-sent) as `expected`, and `signals` to limit the record to the series you posted and the outputs you
+Fetch the run and check it in one call, passing the document (`{inputs, parameters}`, as posted or
+as in the `--inputs` file) as `expected`, and `signals` to limit the record to the series you posted and the outputs you
 need:
 
 - `get_binary_runs` with `simulation`, `fingerprint`, `start: total - 1`, `count: 1` and
   `expected: [document]`, where `total` comes from a first call with `count: 0`. This finds your run
   even when other people run the same simulation, as long as nobody else ran this same binary in
   between.
-- `get_execution` with the printed `Execution:` id and `expected: document` is the same check.
+- `get_execution` with the printed `Execution:` id and `expected: document` is the same check, and
+  the simplest one for a run with `--inputs`.
 - `get_latest_result` with `expected: document` is enough when nobody else runs this simulation.
   It also works with SDK 0.6.1 to 0.6.4, which record no fingerprint.
 
@@ -210,8 +238,8 @@ If the run failed and the reason isn't obvious, continue with `cppmodel:simulati
 
 ## 6. Afterwards
 
-The document was consumed, so nothing needs restoring and later runs (`ctest`, CI) are unaffected.
-To run the same scenario again, post the saved file again before the run. If step 2 found a pending
+Nothing is left pending, so later runs (`ctest`, CI) are unaffected. To run the same scenario
+again, pass the saved file with `--inputs` again (or post it again with an older SDK). If step 2 found a pending
 document that you replaced, tell the user it's gone, and offer to re-post the copy
 saved in step 2.
 

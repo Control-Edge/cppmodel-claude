@@ -15,13 +15,14 @@ A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
   execution history, fetch one past execution, or fetch all the runs of one build (e.g. a whole
   sweep) by its `CppModel.BinaryFingerprint`.
 - **`cppmodel:simulation-inputs`** - run a simulation with specific inputs (time series) and
-  parameters (constants) posted through the Workspace API, without editing or rebuilding it. Finds
-  the exact names the simulation reads, validates and posts the document right before the run (the
-  next execution consumes it), and confirms from the execution record that the values were really
-  used.
+  parameters (constants) without editing or rebuilding it. Finds the exact names the simulation
+  reads, validates the document, and passes it to the binary with `--inputs` (SDK 0.10.0+; older
+  SDKs get it posted right before the run). It can explore values with local runs first. It then
+  confirms from the recorded execution that the values were really used.
 - **`cppmodel:parameter-sweep`** - runs a simulation over a grid or list of parameter values and
-  input profiles through the MCP server: `set_inputs` then a run of the binary, per run, and one
-  `get_binary_runs` call that checks every run used the posted values. Then it reports the
+  input profiles: a run of the binary with that run's document per run (`--inputs`, or `set_inputs`
+  before SDK 0.10.0), and one `get_binary_runs` call that checks every run used its values. A
+  coarse exploratory pass can run locally. Then it reports the
   pass/fail map, where the boundary lies, and the metrics you care about. Nothing is built besides
   the simulation; `cppmodel-tool sweep` is for CI and scripts.
 - **`cppmodel:experiment-design`** - designs a field data-collection plan for a real machine,

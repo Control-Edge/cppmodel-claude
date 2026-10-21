@@ -99,12 +99,17 @@ Every simulation run is submitted to the workspace, and its execution history is
 work: each execution keeps the inputs and parameters it read and every output series, retrievable
 by id later. So:
 
-- **Always run online.** Never set `CPPMODEL_DISCARD_RESULTS` (before SDK 0.8: `CPPMODEL_OFFLINE`),
-  never pass `runOffline`, and never run offline to save time or avoid the API. From SDK 0.9.1
-  any of these makes the run fail. A run whose output has a line starting with `CppModel
-  workspace:` (SDK 0.9.1+; before it, `Could not reach API. Running offline.`), or whose
-  fingerprint line ends in `(not submitted)`, produced nothing anyone can look at or compare later. Treat it as a run that
-  didn't happen: fix the cause (`.env`, network, login) and run again.
+- **Every result you report comes from a recorded execution.** Never set
+  `CPPMODEL_DISCARD_RESULTS` (removed in SDK 0.10.0; before 0.8: `CPPMODEL_OFFLINE`) and never pass
+  `runOffline`. A run whose output has a line starting with `CppModel workspace:` (SDK 0.9.1+;
+  before it, `Could not reach API. Running offline.`) produced nothing anyone can look at or
+  compare later. Treat it as a run that didn't happen: fix the cause (`.env`, network, login) and
+  run again.
+- **Local runs are for exploring, not for results** (SDK 0.10.0+; see "Local runs" below).
+  `--inputs <file> --results <out.json>` runs without submitting, so you can try values or check a
+  fix many times while iterating. Its fingerprint line ends in `(not submitted)`. Whatever you
+  then report, whether a pass/fail, a metric, a conclusion or a before/after comparison, comes from
+  a recorded run of the same binary. Every iteration ends with one.
 - **Compare runs through the history.** Before vs after a change, one scenario against another, a
   sweep against an earlier sweep: `list_executions` finds them, `get_execution` fetches each by id,
   with `signals` for just the series being compared. A sweep or other batch of one build is
@@ -122,6 +127,37 @@ by id later. So:
   of a batch its fingerprint and index (and the UI link: `<uiUrl>/simulations/<name>`), so the user
   and later sessions can find exactly that run.
 - **History isn't clutter.** Never delete a simulation to tidy up (see `delete_simulation` above).
+
+## Local runs
+
+From SDK 0.10.0 a built simulation takes two options. The library reads them itself, so any binary
+built against 0.10.0+ has them, `CMODEL_SIMULATE` and custom `main()`s alike:
+
+- `--inputs <file>` (`-` = stdin) takes the inputs and parameters from the file instead of the
+  workspace. The file is a `set_inputs` document, `{inputs, parameters}`; an execution record
+  also works. The run still submits.
+- `--results <file>` (`-` = stdout) writes the execution to the file instead of submitting it. The
+  file has an execution record's shape (`inputs`, `results`, `parameters`, change-compressed
+  series), so read it like `get_execution`'s result. On its own it still fetches the pending
+  `set_inputs` document, without consuming it.
+
+Both together make a **local run**: nothing is fetched or submitted. It still logs in, so give it
+`get_run_token`'s values for the one command, exactly as for a recorded run. A missing, expired or
+forged login fails it. `--results` is refused when `CI` is set.
+
+Use local runs while iterating: trying parameter values before settling on a scenario, checking
+whether a fix makes a failing trace pass, or exploring a coarse region before a sweep. Read the
+results file directly, without a tool call. Don't use them for a test, `ctest`, CI, or to avoid a
+run showing up in the history.
+
+**End every iteration with a recorded run.** When an iteration is done, run the same binary again
+with the same `--inputs <file>` and without `--results`. It submits, consumes any pending
+`set_inputs` document, and prints its `Execution:` id. Then check it with `get_execution` (that id,
+`expected` = the document) and report that execution, not the local file. With the SDK's
+`cppmodel-tool`, `cppmodel-tool promote <binary> <file> --compare <out.json>` does the same run and
+check, and also confirms the recorded run reproduced the local one. If it didn't reproduce (e.g. the
+simulation uses randomness or wall-clock time), say so and report the recorded run. The local
+results were only a preview.
 
 ## Workspaces
 

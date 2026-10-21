@@ -1,6 +1,6 @@
 ---
 name: cppmodel:parameter-sweep
-description: Run a CppModel simulation many times over a range of parameter values and/or alternative input profiles (a parameter sweep, sensitivity study, or scenario matrix), without editing or rebuilding the simulation - each run's inputs/parameters are posted through the cppmodel MCP server's set_inputs right before it executes, and the whole batch is verified afterwards from the execution records in one get_binary_runs call. Designs the sweep with the user, runs it, and reports which combinations pass or fail, where the pass/fail boundary lies, and the metrics the user cares about. Use when asked to sweep, vary, or tune a parameter, test robustness across input scenarios, find the limit at which a simulation starts failing, or compare several input profiles.
+description: Run a CppModel simulation many times over a range of parameter values and/or alternative input profiles (a parameter sweep, sensitivity study, or scenario matrix), without editing or rebuilding the simulation - each run's inputs/parameters are passed to the binary with --inputs (SDK 0.10.0+) or posted through the cppmodel MCP server's set_inputs right before it executes, and the whole batch is verified afterwards from the execution records in one get_binary_runs call. Designs the sweep with the user, runs it, and reports which combinations pass or fail, where the pass/fail boundary lies, and the metrics the user cares about. Use when asked to sweep, vary, or tune a parameter, test robustness across input scenarios, find the limit at which a simulation starts failing, or compare several input profiles.
 ---
 
 ## How a sweep works
@@ -14,14 +14,15 @@ for authoring inputs) first; they apply to every run here. In short:
   build's runs by it: run i of an unchanged binary is index (runs before the batch) + i (see
   `cppmodel:simulations`' "Runs of one build").
 
-So a sweep is sequential, and runs entirely through the `cppmodel` MCP server. Nothing has to be
-built besides the simulation. For each run:
+So a sweep is sequential, and needs nothing built besides the simulation. For each run, the binary
+runs with that run's document and submits its execution:
 
-1. `set_inputs` posts that run's document;
-2. the binary runs and submits its execution.
+- **SDK 0.10.0+:** the binary takes the document as `--inputs runs/NNN.json`. Nothing is posted, so
+  other runs of the simulation meanwhile (`ctest`, CI, a colleague) can't take a sweep run's values.
+- **Older SDKs:** `set_inputs` posts the document right before the run, and the run consumes it.
 
 Then one `get_binary_runs` call fetches the whole batch by fingerprint and index, and its `expected`
-argument checks every run's recorded values against the documents posted.
+argument checks every run's recorded values against the documents.
 
 Requirements:
 
@@ -46,13 +47,15 @@ or a script" at the end. Don't build it for a sweep run from here.
   `cppmodel:simulation-testing`'s "Requirements"). If there's none, stop and say so.
 - The simulation binary is **built and up to date**. Build it as `cppmodel:simulation-testing`
   describes, before the sweep and not during it.
-- **Nothing else runs this simulation on the same account during the sweep**: no `ctest`, no CI
-  job with the same login, no second sweep, no run started from the web UI. Any of them would
-  consume a posted document meant for a sweep run (other users' runs don't). Say this to the user
-  before starting.
+- **With an SDK before 0.10.0, nothing else runs this simulation on the same account during the
+  sweep**: no `ctest`, no CI job with the same login, no second sweep, no run started from the web
+  UI. Any of them would consume a posted document meant for a sweep run (other users' runs don't).
+  Say this to the user before starting. With `--inputs` only one thing matters: nobody else runs
+  this same build meanwhile, since that would shift the run indices.
 - **Check for a pending document** with `get_pending_inputs`. If one is pending, something on this
   account posted it for a run that hasn't happened. Save it as `<out>/pending.json` and tell the
-  user: the sweep's first post replaces it, and step 6 re-posts it.
+  user: the sweep's first run consumes it (with `--inputs` too, when it submits), and step 6
+  re-posts it.
 
 ## 2. Find the names
 
@@ -87,6 +90,13 @@ Agree on:
   entry to the simulation's execution history, and costs a few API calls, which are rate-limited.
   Past roughly 50 runs, propose a coarse sweep first and then a refined one around the interesting
   region. Get the user's OK on the final run count.
+- **Whether a coarse pass runs locally** (SDK 0.10.0+). A coarse pass that only locates the
+  interesting region can run as local runs: the step-5 command with `--results
+  <out>/local/NNN.json` added. It adds nothing to the history and needs no API calls besides the
+  token, and you read its results files directly. Its pass/fail map is a guide for designing the
+  refined sweep and is never reported as the outcome. The sweep the user gets results from is
+  always recorded (`cppmodel:simulations`' "Local runs"). Offer this only for a pass that is
+  exploratory by design, and say so.
 
 ## 4. Write the documents
 
@@ -94,10 +104,11 @@ Pick an output directory `<out>`. Use scratch for a one-off sweep, or a `.gitign
 the project for one worth repeating after code changes (e.g. `simulations/sweeps/<name>/`). Ask the
 user. It holds:
 
-- `runs/NNN.json`: run NNN's document (`{inputs, parameters}`, exactly as it will be posted), from
-  `000`. Validate every series (lengths, `x` strictly ascending from 0) before posting anything.
+- `runs/NNN.json`: run NNN's document (`{inputs, parameters}`, exactly as the run gets it), from
+  `000`. Validate every series (lengths, `x` strictly ascending from 0) before running anything.
 - `sweep.json`: the record of the sweep. It holds `simulation`, `binary`, and per run its `name`
-  and the varied values. Step 5 adds `fingerprint`, `start`, and each run's `exitCode` and `log`.
+  and the varied values. Step 5 adds `fingerprint`, `start`, and each run's `exitCode`, `log` and
+  printed `Execution:` id.
 
 Copied `CppModel.BinaryFingerprint` parameters can stay in the documents: `set_inputs` drops them
 with a warning, and the `expected` check skips `CppModel.` names.
@@ -108,18 +119,19 @@ document. Show the user the run list before running anything.
 
 ## 5. Run
 
-For each run, in order, post and run straight away:
+For each run, in order:
 
-1. `set_inputs` with `runs/NNN.json`.
+1. With an SDK before 0.10.0 only: `set_inputs` with `runs/NNN.json`, straight before the run.
 2. Run the binary from the project root with the run token set for that one command (as
    `cppmodel:simulation-testing`'s "Build and run" describes), with a time limit a few times its
-   normal runtime, keeping the log:
+   normal runtime, keeping the log. From SDK 0.10.0 it takes the document itself:
 
    ```
-   CPPMODEL_ACCESS_TOKEN=<access_token> CPPMODEL_WORKSPACE=<workspace> CPPMODEL_LOGIN_TIMEOUT=0 timeout 300 ./build/<path>/<SimulationBinary> > <out>/runs/NNN.log 2>&1; echo $?
+   CPPMODEL_ACCESS_TOKEN=<access_token> CPPMODEL_WORKSPACE=<workspace> CPPMODEL_LOGIN_TIMEOUT=0 timeout 300 ./build/<path>/<SimulationBinary> --inputs <out>/runs/NNN.json > <out>/runs/NNN.log 2>&1; echo $?
    ```
 
-   Without `get_run_token`, source `.env` instead.
+   With an older SDK, leave out `--inputs`: the run reads the posted document. Without
+   `get_run_token`, source `.env` instead.
 
 A token lives only about 5 minutes, so fetch a fresh one per batch of runs: call `get_run_token`
 before the first run, note when it expires (`date +%s` plus `expires_in`), and reuse it only while
@@ -149,9 +161,11 @@ default run, so stop.
   included).
 - **The binary was rebuilt mid-sweep.** The log's fingerprint differs from the first run's. Later
   runs are indexed under the new build.
-- **Anything else ran the simulation.** It may have consumed a document meant for a sweep run, or,
-  for the same binary on the same account, shifted the indices. Stop as soon as you know of one.
-  Otherwise the check in step 6 shows it.
+- **A run's log has a line starting with `CppModel: --inputs`.** The document is unusable; the line
+  says why. Fix it (in every document that shares the problem) before going on.
+- **Anything else ran the simulation.** Before SDK 0.10.0 it may have consumed a document meant for
+  a sweep run. A run of the same binary shifts the indices with any SDK. Stop as soon as you know
+  of one. Otherwise the check in step 6 shows it.
 
 Report the reason. Don't re-run blindly.
 
@@ -163,9 +177,10 @@ true`, or `signals` with just the series step 3 agreed to measure. Above 50 runs
 call starts at `start + 50` with the next 50 documents, and so on.
 
 - **`allApplied: true`**: every run used what was posted. Go on to step 7.
-- **A run with `applied: false`**: its `differences` list posted vs read values. Report them
-  verbatim. If the recorded values are the fallbacks, the SDK isn't applying posted inputs at all
-  (SDKs before 0.6.1). That isn't something to fix in the documents; offer
+- **A run with `applied: false`**: its `differences` list the document's vs read values. Report them
+  verbatim. If the recorded values are the fallbacks, the SDK isn't applying the documents at all:
+  an SDK before 0.10.0 run with `--inputs` ignores the option, and one before 0.6.1 ignores posted
+  inputs. That isn't something to fix in the documents; offer
   `cppmodel:update-dependencies`. If only some runs differ, something else consumed their
   documents. Leave those runs out of the analysis and say which.
 - **`notRunYet`**: fewer runs are indexed than were made. A run didn't submit, or the start index
@@ -219,7 +234,10 @@ was re-posted.
 ## In CI or a script
 
 A pipeline or script that sweeps without an AI assistant uses `cppmodel-tool sweep` (SDK 0.6.3+),
-which runs the same post-run-verify loop from a plan file. From SDK 0.8 it ships prebuilt with the
+which runs the same run-and-verify loop from a plan file. From SDK 0.10.0 it passes each run's
+document with `--inputs` and finds the run's execution by the id the run prints. The binary must then
+be built with 0.10.0+ too. Before 0.10.0 it posts each document and finds the run by fingerprint
+index. From SDK 0.8 it ships prebuilt with the
 SDK as `dependencies/bin/cppmodel-tool` (`.exe` on Windows); before 0.8 it shipped as source in
 `<sdk>/share/cppmodel/tools`, built with the project's toolchain
 (`cmake -S dependencies/share/cppmodel/tools -B build/cppmodel-tool`). `cppmodel:ci-pipeline` sets
@@ -249,6 +267,7 @@ The plan lists `simulation`, `binary` (relative to the folder of the `.env` in u
 ```
 
 It exits `0` when every run was verified (whether each passed or failed), `1` when it stopped
-early, `2` for a usage error, and `130` after Ctrl-C. `<out>/summary.json` has one row per run
-with its `fingerprint` and `index`, which `get_binary_runs` reads like a sweep from here.
+early, `2` for a usage error, and `130` after Ctrl-C. `<out>/summary.json` has one row per run with
+its `fingerprint` and `executionId`, read with `get_execution` (before 0.10.0: `fingerprint` and
+`index`, read with `get_binary_runs` like a sweep from here).
 `cppmodel-tool --help` lists the rest.

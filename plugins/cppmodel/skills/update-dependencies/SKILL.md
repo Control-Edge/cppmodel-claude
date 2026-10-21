@@ -200,6 +200,21 @@ old headers include `cppmodel.hpp`, and `CppModelBase`/`CppModelLib` are namespa
   "CPPMODEL_DISCARD_RESULTS=true"` property, now fail: point them out and ask before removing the
   setting, since those runs will then be submitted. Without credentials, the browser sign-in now
   waits 60 seconds (`CPPMODEL_LOGIN_TIMEOUT`; `0` fails at once) instead of indefinitely.
+- 0.10.0 (release notes):
+  - **`CPPMODEL_DISCARD_RESULTS` is removed.** Where it's still set, it no longer fails the run:
+    the run submits like any other. Point out every place that sets it, and ask before removing
+    it.
+  - **New local-run options:** binaries take `--inputs <file>` and `--results <file>` (see
+    `cppmodel:simulations`' "Local runs"). The library reads them from the command line itself.
+    So a project whose own `main()` already parses an `--inputs` or `--results` option, or a Python
+    script using `argparse` with those names, now has them read twice. Grep for them and point out
+    any clash.
+  - **`cppmodel-tool sweep` now passes `--inputs`.** It refuses a binary built with an older SDK
+    (the first run isn't `applied`), so rebuild the simulations together with the update.
+    `summary.json` rows have `executionId` instead of `index`: update any CI step or script that
+    reads `index`.
+  - **`JsonInput` (C++) is deprecated** in favour of `--inputs`. It still works; mention it, don't
+    rewrite.
 
 ## 7. Fix call sites: mechanical changes now, ambiguous ones stop and ask
 

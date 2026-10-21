@@ -207,10 +207,11 @@ secrets/variables, never literal values in the config:
 - Bitbucket: same direct `$CPPMODEL_USERNAME` reference, added as a (Secured) repository or
   workspace variable under Settings > Repository variables.
 
-Never set `CPPMODEL_DISCARD_RESULTS` (before 0.8: `CPPMODEL_OFFLINE`) in CI. CI runs are
-submitted to the workspace like any other, and their executions are the history later runs are
-compared against (see `cppmodel:simulations`' "The workspace is part of the loop"). From SDK 0.9.1
-it makes every run fail anyway.
+Never set `CPPMODEL_DISCARD_RESULTS` (removed in 0.10.0; before 0.8: `CPPMODEL_OFFLINE`) in CI,
+and never pass a simulation `--results` there. CI runs are submitted to the workspace like any
+other, and their executions are the history later runs are compared against (see
+`cppmodel:simulations`' "The workspace is part of the loop"). From SDK 0.10.0 a run with
+`--results` fails when `CI` is set, which every supported provider sets.
 
 Set `CPPMODEL_LOGIN_TIMEOUT: 0` (as a plain value, not a secret) next to the credentials (SDK
 0.9.1+). With a missing or wrong secret, a run then fails at once with a `CppModel workspace:` line
@@ -230,12 +231,21 @@ before 0.8 it ships as source and is built with the project's toolchain:
 `cmake -S dependencies/share/cppmodel/tools -B build/cppmodel-tool && cmake --build build/cppmodel-tool`.
 
 It logs in with the same `CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD` variables (via a `.env` written
-from the secrets at the project root, or `--env <file>`). It consumes posted documents on that
-account, so a sweep job must not run concurrently with another job that runs the same simulation
-with the same login - serialize them (GitHub/Gitea `concurrency:`, GitLab `resource_group:`,
-Bitbucket separate steps). Let the sweep's exit code fail the job (`0` every run verified, `1`
-stopped early), and keep `<out>/summary.json` as an artifact so its `fingerprint`/`index` rows can
-be read later with `get_binary_runs`. Don't add any of this unless the user asked for it.
+from the secrets at the project root, or `--env <file>`).
+- **From SDK 0.10.0,** the sweep passes each run's document to the binary with `--inputs`, so jobs
+  on several platforms can sweep the same simulation with the same login at once. The simulation
+  binaries must be built with 0.10.0+ as well.
+- **Before 0.10.0,** it posts documents on that account. A sweep job then must not run concurrently
+  with another job that runs the same simulation with the same login: serialize them
+  (GitHub/Gitea `concurrency:`, GitLab `resource_group:`, Bitbucket separate steps).
+
+Let the sweep's exit code fail the job (`0` every run verified, `1` stopped early). Keep
+`<out>/summary.json` as an artifact: its rows' `executionId` can be read later with `get_execution`
+(before 0.10.0: `fingerprint`/`index` with `get_binary_runs`). To also assert the expected outcome
+of each run, as a test, read `summary.json`'s `passed` per run in a follow-up step. The SDK's own
+`ParameterSweep` CTest (`tests/ParameterSweep.cmake` in the CppModel sources) does this with
+CMake's `string(JSON)`, which reads booleans as `ON`/`OFF`. Don't add any of this unless the user
+asked for it.
 
 ### Worked example (GitHub Actions, Linux+macOS+Windows matrix)
 
