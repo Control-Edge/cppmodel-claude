@@ -77,6 +77,26 @@ A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
 The plugin connects Claude Code to the `cppmodel` MCP server at `https://mcp.cppmodel.com/mcp`.
 Run `/mcp` once and authenticate it with your CppModel account.
 
+### Other agents
+
+`plugins/cppmodel-portable` is the same plugin as an [Agent Plugins](https://agent-plugins.org)
+package (Agent Skills plus the `cppmodel` MCP server) and a Gemini CLI extension:
+
+| Agent | Install |
+|---|---|
+| OpenAI Codex | `codex plugin marketplace add Control-Edge/cppmodel-claude`, then install `cppmodel` from `/plugins` |
+| GitHub Copilot CLI | `copilot plugin marketplace add Control-Edge/cppmodel-claude`, then `copilot plugin install cppmodel@cppmodel-tools` |
+| Cursor | add `https://github.com/Control-Edge/cppmodel-claude` as a team marketplace (it reads `.cursor-plugin/marketplace.json`), or copy `plugins/cppmodel-portable` to `~/.cursor/plugins/local/cppmodel` |
+| Gemini CLI | clone this repository, then `gemini extensions install <clone>/plugins/cppmodel-portable` (Gemini installs only a repository whose root is the extension) |
+
+Then sign in to the `cppmodel` MCP server the way that agent does it, with your CppModel account.
+
+Don't edit `plugins/cppmodel-portable` or the `marketplace.json` files under `.agents/`,
+`.github/plugin/` and `.cursor-plugin/`: they are generated from `plugins/cppmodel` by
+`python3 tools/build-portable-plugin.py`, which gives the skills Agent Skills-conformant names and
+the same reading notes `get_guide` adds (below). Run it after changing the plugin, and
+`python3 tools/build-portable-plugin.py --check` to see whether the committed output is current.
+
 Other AI assistants get the same skills from that server without the plugin: its `get_guide` tool
 reads them from this repository's `main` branch (cached for an hour) and serves them as guides,
 with a `new-project` guide that puts them in order. So what's merged here reaches those clients
@@ -139,3 +159,7 @@ one from your login automatically, and every skill works the same with either.
   `cppmodel:ci-pipeline` and `cppmodel:update-dependencies` skills copy them into a project;
   `cppmodel:setup-environment` also runs them directly for first-time setup
 - `plugins/cppmodel/.mcp.json` - the `cppmodel` MCP server the query, inputs and sweep skills use
+- `plugins/cppmodel-portable/` - generated: the plugin for Codex, Copilot, Cursor and Gemini CLI
+  (see "Other agents")
+- `tools/build-portable-plugin.py` - generates `plugins/cppmodel-portable` and the other agents'
+  marketplace files

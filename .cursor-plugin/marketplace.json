@@ -1,0 +1,16 @@
+{
+  "name": "cppmodel-tools",
+  "owner": {
+    "name": "Control Edge AB",
+    "url": "https://cedge.se"
+  },
+  "plugins": [
+    {
+      "name": "cppmodel",
+      "source": "./plugins/cppmodel-portable",
+      "description": "Build, run, and query CppModel simulations and their Workspace API results",
+      "version": "0.15.0",
+      "license": "MIT"
+    }
+  ]
+}

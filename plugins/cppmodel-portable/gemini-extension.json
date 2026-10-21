@@ -1,0 +1,14 @@
+{
+  "name": "cppmodel",
+  "version": "0.15.0",
+  "description": "Build, run, and query CppModel simulations and their Workspace API results",
+  "mcpServers": {
+    "cppmodel": {
+      "httpUrl": "https://mcp.cppmodel.com/mcp",
+      "oauth": {
+        "enabled": true,
+        "clientId": "cppmodel-mcp"
+      }
+    }
+  }
+}
