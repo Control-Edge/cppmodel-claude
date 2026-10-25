@@ -220,32 +220,49 @@ instead of printing a browser sign-in link and waiting 60 seconds per simulation
 Let `ctest`'s own nonzero exit code fail the job everywhere - don't wrap it in something that
 swallows the exit code.
 
-**Posting inputs or running sweeps (only when the pipeline needs it)**: a job that runs a
-simulation with posted inputs or parameters, or a whole parameter sweep, has no MCP server, so it
-uses the SDK's `cppmodel-tool` (`cppmodel-tool sweep <plan.json> <out>`; plan format in
-`cppmodel:parameter-sweep`'s "In CI or a script"). This is the one place the plugin uses the tool -
-interactive work goes through the MCP server and doesn't need it. From SDK 0.8 it ships prebuilt
-with the SDK, so there's nothing to build: after the dependency fetch it's
-`dependencies/bin/cppmodel-tool` (`dependencies\bin\cppmodel-tool.exe` on Windows). With an SDK
-before 0.8 it ships as source and is built with the project's toolchain:
-`cmake -S dependencies/share/cppmodel/tools -B build/cppmodel-tool && cmake --build build/cppmodel-tool`.
+**Scenarios and sweeps (only when the user asks for them)**: a simulation that must run with
+specific inputs or parameters, or over a set of values, needs nothing but the library and `ctest`
+(SDK 0.10.0+). Each scenario or sweep point is an inputs document committed with the project, in
+the shape `set_inputs` takes (`{inputs, parameters}`), and its own test that passes it with
+`--inputs`:
 
-It logs in with the same `CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD` variables (via a `.env` written
-from the secrets at the project root, or `--env <file>`).
-- **From SDK 0.10.0,** the sweep passes each run's document to the binary with `--inputs`, so jobs
-  on several platforms can sweep the same simulation with the same login at once. The simulation
-  binaries must be built with 0.10.0+ as well.
-- **Before 0.10.0,** it posts documents on that account. A sweep job then must not run concurrently
-  with another job that runs the same simulation with the same login: serialize them
-  (GitHub/Gitea `concurrency:`, GitLab `resource_group:`, Bitbucket separate steps).
+```cmake
+foreach(scenario IN ITEMS nominal heavy-load cold-start)
+    add_test(NAME VelocityProfile-${scenario}
+             COMMAND VelocityProfile --inputs ${CMAKE_CURRENT_SOURCE_DIR}/scenarios/${scenario}.json)
+endforeach()
+# A point that is meant to fail (e.g. beyond the controller's limit) is still a passing test:
+set_tests_properties(VelocityProfile-heavy-load PROPERTIES WILL_FAIL TRUE)
+```
 
-Let the sweep's exit code fail the job (`0` every run verified, `1` stopped early). Keep
-`<out>/summary.json` as an artifact: its rows' `executionId` can be read later with `get_execution`
-(before 0.10.0: `fingerprint`/`index` with `get_binary_runs`). To also assert the expected outcome
-of each run, as a test, read `summary.json`'s `passed` per run in a follow-up step. The SDK's own
-`ParameterSweep` CTest (`tests/ParameterSweep.cmake` in the CppModel sources) does this with
-CMake's `string(JSON)`, which reads booleans as `ON`/`OFF`. Don't add any of this unless the user
-asked for it.
+- **Writing the documents.** Write them with `cppmodel:simulation-inputs` (one scenario) or
+  `cppmodel:parameter-sweep` (one document per point). Both check the names against what the
+  simulation reads before anything is committed. A misspelled name silently runs with the code's
+  fallback.
+- **Submitting.** Each test is a normal run: it fetches nothing, submits its execution, and its exit
+  code is the test result.
+- **Concurrency.** Nothing is posted, so jobs on several platforms can run the same tests with the
+  same login at once.
+- **No extra tools.** Don't add a separate sweep step or tool to the pipeline.
+
+**Requirement coverage (SDK 0.11.0+, only when the simulations call `VerifyRequirement`)**: each
+run writes the IDs it covered to `cppmodel-requirements.json` in its working directory, one entry
+per simulation. Parallel tests (`ctest -j`) in one directory can overwrite each other's entries,
+so give each test its own file and keep them as a build artifact:
+
+```cmake
+set_tests_properties(VerifyZoneControlTest PROPERTIES
+    ENVIRONMENT "CPPMODEL_REQUIREMENTS_FILE=${CMAKE_BINARY_DIR}/requirements/VerifyZoneControlTest.json")
+```
+
+Upload the `requirements/` folder with the provider's artifact step (also when tests fail), so
+`cppmodel:verification` can build the coverage report from a CI run. A negative test (`WILL_FAIL`,
+proving a rule can fail) writes coverage too. Give it a separate file, so it isn't mistaken for the
+real run's coverage.
+
+With an SDK before 0.10.0 a binary can't take `--inputs`. Its inputs can only be posted on the
+account right before the run, which a pipeline can't do safely. Recommend updating the SDK
+(`cppmodel:update-dependencies`) instead of building that into the pipeline.
 
 ### Worked example (GitHub Actions, Linux+macOS+Windows matrix)
 

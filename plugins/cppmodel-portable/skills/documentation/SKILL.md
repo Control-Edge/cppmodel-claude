@@ -130,6 +130,9 @@ Include only the sections with something real to say. Sections 1 to 4 are usuall
    part to rebuild later.
 6. **Validation**: one or two lines with the simulation name, its workspace link, and the latest
    result from the API. If there were field experiments, add one line per plan with its status.
+   If the simulation has verification rules (`cppmodel:verification`), add one table with columns
+   requirement ID, rule, settings, and latest status with its margin. List the requirements that
+   aren't verified by simulation too.
 7. **Open questions**: a bullet list, only if there are any.
 
 ## Math: TeX in Markdown

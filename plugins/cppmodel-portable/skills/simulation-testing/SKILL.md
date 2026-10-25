@@ -81,6 +81,13 @@ the whole run, there's no "mostly passing"). How that's actually wired up is pro
 you must check what already exists before picking one - don't assume either shape below is what
 this project uses without looking.
 
+From SDK 0.11.0, verification rules can set `CppModel.StepResult` instead: objects created once
+with a name and settings (`Always`, `Response`, `Settle`, `Mode`, `Oscillation`, ...) that the
+library tracks over time, ANDed with whatever the simulation sets itself. When the pass/fail
+criterion is about time or comes from a requirement (a range, an interlock, a deadline, settling,
+a mode sequence, no oscillation), use rules and `VerifyRequirement` through
+`cppmodel:verification` rather than hand-written step logic.
+
 ### C++
 
 Check first whether this project has its own base class layered on top of
@@ -91,7 +98,8 @@ point override, and helpers for tracing which requirements each simulation exerc
 requirements file. If a wrapper like this exists anywhere in the project, subclass *that* and
 follow its exact shape (populate its step container, override its per-cycle method, call its
 requirement-tracing helper if the scenario covers a named requirement) - don't build a second,
-competing mechanism alongside it.
+competing mechanism alongside it. (From SDK 0.11.0 the library has its own `VerifyRequirement`; if
+the project's helper predates it, ask before switching, see `cppmodel:verification`.)
 
 If no such wrapper exists, `#include <cppmodel.hpp>` (C++17) and subclass `cppmodel::Simulation`
 directly. Set `name`, `time_ms` and `stepSize_ms` in the constructor. Override `RunCyclic` as the
@@ -246,13 +254,18 @@ script to reconstruct the trace - the tool already returns it. For a long run, c
 
 Workflow:
 
-1. Find where `CppModel.StepResult` first drops to 0 in the returned time series.
+1. Find where `CppModel.StepResult` first drops to 0 in the returned time series. If the
+   simulation uses verification rules (SDK 0.11.0+), start from the parameters instead: each
+   failed rule's `CppModel.Verify.<name>` gives its `explanation` and `violations` (time
+   intervals in seconds), and its output series of the same name drops to 0 where it first
+   failed. See `cppmodel:verification`.
 2. Cross-reference `internalStepNumber`'s transitions to identify which step function was running
    at that timestamp, and the local time within that step (absolute time minus the step's start
    time).
 3. Look at the other signals' values at that same timestamp to see what state the model/controller
    was actually in - usually enough to tell whether the assertion's logic is wrong, its timing is
-   wrong, or the code under test has a real bug.
+   wrong, or the code under test has a real bug. A fix to controller code (code that ships to the
+   target) follows `cppmodel:coding-standard`.
 4. Fix, rebuild, rerun, re-fetch, and confirm the trace is clean end to end (`StepResult` never
    dips to 0 anywhere) - not just that the process exit code was 0. With SDK 0.10.0+, the tries
    in between can run without submitting: add `--results <out.json>` and read the trace from that

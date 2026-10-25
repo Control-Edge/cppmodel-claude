@@ -215,6 +215,16 @@ old headers include `cppmodel.hpp`, and `CppModelBase`/`CppModelLib` are namespa
     reads `index`.
   - **`JsonInput` (C++) is deprecated** in favour of `--inputs`. It still works; mention it, don't
     rewrite.
+- 0.11.0 (release notes): nothing existing changes, so nothing needs fixing.
+  - **Verification rules** (`cppmodel::verify`, `CppModel_rule*`, `cm_rule_*`) and **requirement
+    coverage** (`VerifyRequirement`) are new. After the update, if the project's simulations set
+    `CppModel.StepResult` from hand-written timing checks or trace requirements through a helper of
+    their own, mention `cppmodel:verification` once. Don't rewrite them.
+  - A simulation that calls `VerifyRequirement` writes `cppmodel-requirements.json` into its
+    working directory. Offer to add it to `.gitignore`.
+  - The Python and Node packages need the 0.11.0 library for these.
+  - `CPPMODEL_BUILD_TOOL` (CMake, on by default) only matters to projects that build the library
+    from source.
 
 ## 7. Fix call sites: mechanical changes now, ambiguous ones stop and ask
 

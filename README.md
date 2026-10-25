@@ -1,6 +1,6 @@
 # CppModel Tools
 
-A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
+A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
 
 - **`cppmodel:decouple-component`** - decouple a vendor-coupled controller component (one that
   calls a vendor BSW/RTOS/HAL API directly) so it can run in isolation under CppModel.
@@ -24,7 +24,7 @@ A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
   before SDK 0.10.0), and one `get_binary_runs` call that checks every run used its values. A
   coarse exploratory pass can run locally. Then it reports the
   pass/fail map, where the boundary lies, and the metrics you care about. Nothing is built besides
-  the simulation; `cppmodel-tool sweep` is for CI and scripts.
+  the simulation. Points worth keeping become `ctest` tests that run with `--inputs`.
 - **`cppmodel:experiment-design`** - designs a field data-collection plan for a real machine,
   aimed at the behaviour the plant model is least sure of. Every run carries the trace the current
   model predicts, computed by a `planned-<plan-id>` simulation that stays out of `ctest`/CI until
@@ -36,6 +36,17 @@ A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
   re-simulates what was actually done, and shows predicted vs actual on the same plots against the
   plan's tolerances. Then proposes a minimal plant-model refinement on the planned path, checks it
   against the same logs, and recommends promoting, planning again, or re-tuning the controller.
+- **`cppmodel:verification`** - turns a controller's requirements into the SDK's verification
+  rules (`Always`, `Response`, `Settle`, `Mode`, `Oscillation`, `Wear`, `Rate`, `Energy`,
+  `Percent`, SDK 0.11.0+) and requirement coverage (`VerifyRequirement`). It confirms the
+  requirement-to-rule mapping with you before writing code, proves each rule can fail, and reports
+  each rule's outcome and margin from the recorded execution. It then builds a coverage matrix from
+  `cppmodel-requirements.json`: covered, gaps, unknown IDs, and what isn't verifiable by simulation.
+- **`cppmodel:coding-standard`** - when controller (production) code is written or changed, offers
+  MISRA C/C++ or the project's own standard. MISRA is licensed per user, so it works from your own
+  copy of the rules (a path to your PDF or rule-texts file), never from general knowledge. It never
+  copies the rule texts anywhere, runs your checker if the project has one, and remembers the
+  choice in `.claude/cppmodel.local.json`.
 - **`cppmodel:documentation`** - a short Markdown document (one to two screens) for a plant model
   and its controller: interface table, per-cycle update laws in TeX math (`$...$`/`$$...$$`),
   parameters, the controller's state machine (Mermaid), the simplifications made and why, and
@@ -58,8 +69,8 @@ A Claude Code plugin for projects using the CppModel libraries. Thirteen skills:
   which provider, platform(s), and compiler(s) to target from what CppModel actually publishes a
   prebuilt SDK for. Installs the plugin's `install-cppmodel.sh`/`.ps1` templates into the project
   if it doesn't already have an equivalent script, so CI and local dependency fetches share the
-  same logic regardless of provider. It uses the SDK's prebuilt `cppmodel-tool` only when a
-  pipeline posts inputs or runs sweeps; no other skill uses it.
+  same logic regardless of provider. Scenarios and sweep points run as `ctest` tests with
+  `--inputs`; the pipeline needs nothing besides the SDK.
 - **`cppmodel:setup-environment`** - first-time machine setup: detects the OS, architecture, C
   library, installed compilers/toolchains and build tools, compares them with the SDK builds
   CppModel actually publishes (one per OS and architecture from SDK 0.8), and lets you pick an

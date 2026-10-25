@@ -156,9 +156,17 @@ built against 0.10.0+ has them, `CMODEL_SIMULATE` and custom `main()`s alike:
   series), so read it like `get_execution`'s result. On its own it still fetches the pending
   `set_inputs` document, without consuming it.
 
-Both together make a **local run**: nothing is fetched or submitted. It still logs in, so give it
-`get_run_token`'s values for the one command, exactly as for a recorded run. A missing, expired or
-forged login fails it. `--results` is refused when `CI` is set.
+Both together make a **local run**: nothing is fetched or submitted. It still logs in, through the
+same environment variables as a recorded run: `get_run_token`'s values set for that one command
+only, never passed as an argument or written to a file:
+
+```
+CPPMODEL_ACCESS_TOKEN=<access_token> CPPMODEL_WORKSPACE=<workspace> CPPMODEL_LOGIN_TIMEOUT=0 ./build/<path>/<SimulationBinary> --inputs <file> --results <out.json>
+```
+
+The library checks the token's signature and expiry against the login server's keys, so a
+missing, expired or forged token fails the run. Without the tool, a run falls back to
+`.cppmodeltoken` or `.env`. `--results` is refused when `CI` is set.
 
 Use local runs while iterating: trying parameter values before settling on a scenario, checking
 whether a fix makes a failing trace pass, or exploring a coarse region before a sweep. Read the
@@ -212,6 +220,18 @@ A result (latest, or one execution by id) is one JSON document:
 
 `x` is simulation time in ms. Series are change-compressed: `x` holds only the times the value
 changed, plus the end time, so the value between two points is the earlier point's `y`.
+
+A simulation with verification rules (SDK 0.11.0+, `cppmodel:verification`) also records, per
+rule:
+
+- the parameter `CppModel.Verify.<name>`: a JSON object with `status` (`pass`/`fail`/`error`),
+  `margins` (> 0 headroom, < 0 missed by that much, in the signal's units or seconds), `metrics`,
+  `violations` (time intervals in **seconds**, not ms) and `explanation`;
+- the output series `CppModel.Verify.<name>`: 1 until the rule first fails, then 0.
+
+For "why did it fail", read those parameters before fetching any series. Requirement IDs
+(`VerifyRequirement`) are not in the execution record. They are only printed and written to a
+local `cppmodel-requirements.json` (see `cppmodel:verification`, step 6).
 
 Whether a signal is in `inputs` (a `CppModel_getInput*`) or in `results` (a
 `CppModel_setOutput*`) tells you it's crossing into or out of whichever component that

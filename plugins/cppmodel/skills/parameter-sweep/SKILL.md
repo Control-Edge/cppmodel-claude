@@ -37,8 +37,7 @@ Requirements:
 - Posted documents are applied only from SDK 0.6.1 on. Check the vendored version as
   `cppmodel:simulation-inputs` describes.
 
-In CI or a script, without an AI assistant, `cppmodel-tool sweep` runs the same loop. See "In CI
-or a script" at the end. Don't build it for a sweep run from here.
+To keep a sweep running in CI, turn its run documents into tests. See "In CI" at the end.
 
 ## 1. Preconditions
 
@@ -85,7 +84,10 @@ Agree on:
   so, and offer a committed scenario file as the base instead.
 - **What to measure.** Pass/fail is always recorded (exit code, `CppModel.StepResult`). Ask what
   else matters: peak or overshoot of an output, settling time, the final value, the time an event
-  first happens. Knowing this up front decides which signals to fetch in step 6.
+  first happens. Knowing this up front decides which signals to fetch in step 6. If the simulation
+  has verification rules (SDK 0.11.0+), each rule's margin (`margins` in its
+  `CppModel.Verify.<name>` parameter) is a ready-made metric. Its sign flips at the pass/fail
+  boundary, so it shows how close each passing run came.
 - **Size and time.** Every run is a real execution: it takes the binary's full runtime, adds an
   entry to the simulation's execution history, and costs a few API calls, which are rate-limited.
   Past roughly 50 runs, propose a coarse sweep first and then a refined one around the interesting
@@ -206,7 +208,8 @@ Each run in `get_binary_runs` has its `index`, `passed` (every cycle's `CppModel
   re-derive values some other way. For a sweep from an earlier session, `sweep.json`'s
   `fingerprint` and `start` fetch the runs again in order.
 - **Refine where it matters.** If the boundary falls between two values, offer a second, finer
-  sweep between them rather than guessing where it is.
+  sweep between them rather than guessing where it is. With verification rules, the margins on
+  both sides show roughly where to aim it. Still confirm the boundary with runs.
 - For a visual comparison, offer to plot the key signal across runs. Load the `dataviz` skill
   before drawing any chart.
 
@@ -231,43 +234,11 @@ Point the user at the web UI for any run they want to inspect:
 Finish with where `sweep.json` and the documents are, and whether a previously pending document
 was re-posted.
 
-## In CI or a script
+## In CI
 
-A pipeline or script that sweeps without an AI assistant uses `cppmodel-tool sweep` (SDK 0.6.3+),
-which runs the same run-and-verify loop from a plan file. From SDK 0.10.0 it passes each run's
-document with `--inputs` and finds the run's execution by the id the run prints. The binary must then
-be built with 0.10.0+ too. Before 0.10.0 it posts each document and finds the run by fingerprint
-index. From SDK 0.8 it ships prebuilt with the
-SDK as `dependencies/bin/cppmodel-tool` (`.exe` on Windows); before 0.8 it shipped as source in
-`<sdk>/share/cppmodel/tools`, built with the project's toolchain
-(`cmake -S dependencies/share/cppmodel/tools -B build/cppmodel-tool`). `cppmodel:ci-pipeline` sets
-it up in the pipeline.
-
-```
-dependencies/bin/cppmodel-tool sweep <plan.json> <out-dir> [--dry-run] [--timeout <seconds>] [--workspace <id>] [--env <file>]
-```
-
-The plan lists `simulation`, `binary` (relative to the folder of the `.env` in use), `base`
-(`"defaults"`, `"current"`, or an inline document), and either `parameters`/`inputs` for a grid or
-`runs` for an explicit list:
-
-```json
-{
-  "simulation": "<exact name from CMODEL_SIMULATE / CppModel_create>",
-  "binary": "build/<path>/<SimulationBinary>",
-  "base": "defaults",
-  "parameters": { "Max Acceleration [m/s^2]": [2.0, 4.0, 6.0] },
-  "inputs": {
-    "Desired Velocity [mm/s]": {
-      "slow": { "x": [0, 300], "y": [30, 60] },
-      "fast": { "x": [0, 300], "y": [100, 200] }
-    }
-  }
-}
-```
-
-It exits `0` when every run was verified (whether each passed or failed), `1` when it stopped
-early, `2` for a usage error, and `130` after Ctrl-C. `<out>/summary.json` has one row per run with
-its `fingerprint` and `executionId`, read with `get_execution` (before 0.10.0: `fingerprint` and
-`index`, read with `get_binary_runs` like a sweep from here).
-`cppmodel-tool --help` lists the rest.
+A sweep that should keep running in CI needs no tool (SDK 0.10.0+). Copy the run documents worth
+keeping (`<out>/runs/NNN.json`, renamed after what they test) into the project. Then add one
+`ctest` test per document that runs the binary with `--inputs <document>`. Mark a point meant to
+fail with `WILL_FAIL`. `cppmodel:ci-pipeline`'s "Scenarios and sweeps" shows the CMake. Every test
+submits its execution, and the exit code is the result. With an SDK before 0.10.0, recommend
+updating it (`cppmodel:update-dependencies`) first.

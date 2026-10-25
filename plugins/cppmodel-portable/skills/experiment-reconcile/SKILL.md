@@ -214,7 +214,8 @@ Set the plan's `status` to `reconciled`. Then, from the evidence, propose one of
   Hand off to `cppmodel:experiment-design` for a new plan (`supersedes` this one), aimed at what is
   still unexplained and built on this reconciliation's logging findings and achieved setpoints.
 - **Re-tune the controller**, when the model now agrees and the problem is the control algorithm
-  on the real machine. That's `cppmodel:simulation-testing` work on the planned path first.
+  on the real machine. That's `cppmodel:simulation-testing` work on the planned path first, with
+  the controller code changed under `cppmodel:coding-standard`.
 
 Finish with where `reconciliation.json`, the page, and any model variant are, the plan's new
 status, and which next step you propose.
