@@ -5,10 +5,12 @@ description: Run a CppModel simulation with specific inputs (time series read by
 
 ## What this is
 
-This runs an existing simulation with different *values*. If the request needs logic the
+This runs an existing simulation with different *values*. Whenever a case can be expressed by
+inputs and/or parameters alone, this is the way to run it: write no new C/C++ file and don't
+edit the simulation. If the request needs logic the
 simulation doesn't already describe (stimuli that react to state, a sequence, a fault, a different
 variant, its own assertions), don't encode it in an input document: offer a new simulation in
-C/C++ instead (`cppmodel:simulation-testing`, "One simulation per behaviour").
+C/C++ instead (`cppmodel:simulation-testing`, "New case: input document or new simulation").
 
 A simulation reads two kinds of external data:
 

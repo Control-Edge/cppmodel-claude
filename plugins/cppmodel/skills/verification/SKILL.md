@@ -137,7 +137,7 @@ silently. For each rule, show one run where it fails, at the step where it shoul
   disturbance. Run it with `--inputs <file>` (`cppmodel:simulation-inputs`).
 - Where only a broken controller can show the failure (late response, aggressive gains), prefer a
   separate **negative simulation** that wires a deliberately broken controller variant in C/C++,
-  with the same rules (`cppmodel:simulation-testing`, "One simulation per behaviour"). A
+  with the same rules (`cppmodel:simulation-testing`, "New case: input document or new simulation"). A
   test-only fault switch read from a parameter in the harness also works, and the SDK's
   `VerifyZoneControl` does this (`CppModel.Verify.Controller` with `reference`, `late-smoke`,
   `aggressive`...); follow it only if the project already uses that pattern. Never add a fault

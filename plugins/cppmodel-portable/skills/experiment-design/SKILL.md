@@ -92,9 +92,9 @@ Never promote on your own; propose it and wait for a yes. Promoting means:
    model) into the production folders;
 2. give it a production name, which is a new simulation on the server with an empty history (the
    planned history stays readable under `planned-<plan-id>`; say so);
-3. turn the plan's runs into simulations or explicit scenario steps in C/C++
-   (`cppmodel:simulation-testing`), using committed scenario files (`cppmodel:simulation-inputs`)
-   only for runs that are just an operator profile replayed against the same behaviour;
+3. turn the plan's runs into committed scenario files (`cppmodel:simulation-inputs`), since
+   they differ only in inputs and parameters; only a run that needs different logic or flow
+   becomes another simulation (`cppmodel:simulation-testing`);
 4. register it in `ctest`/CI (`cppmodel:ci-pipeline`);
 5. set the plan's `status` to `promoted`.
 

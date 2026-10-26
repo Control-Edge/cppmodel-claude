@@ -1,6 +1,6 @@
 ---
 name: cppmodel:simulation-testing
-description: Write, extend, or debug a CppModel-based simulation test, in C (the SDK's CModel.h API - CppModel_* functions and its CMODEL_CYCLIC/CMODEL_SIMULATE macros - directly or via a project's own helpers) or C++ (cppmodel::Simulation from cppmodel.hpp, CppModelBase::Simulation in older code, directly or via a project's own wrapper class). Use when asked to add test coverage to a CppModel simulation, to test a new behaviour or use case (preferably as its own simulation written in C/C++ rather than input files fed to an existing one), when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data.
+description: Write, extend, or debug a CppModel-based simulation test, in C (the SDK's CModel.h API - CppModel_* functions and its CMODEL_CYCLIC/CMODEL_SIMULATE macros - directly or via a project's own helpers) or C++ (cppmodel::Simulation from cppmodel.hpp, CppModelBase::Simulation in older code, directly or via a project's own wrapper class). Use when asked to add test coverage to a CppModel simulation, to test a case that needs different logic or flow than an existing simulation (as another simulation; a case that only needs other inputs/parameters uses cppmodel:simulation-inputs, with no new file), when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data.
 ---
 
 ## Requirements: check credentials before running or debugging anything
@@ -99,23 +99,26 @@ CMODEL_CYCLIC()
 The C++ shape is the same: the plant is a member, evaluated first in `RunCyclic`, and each
 controller input is read with `inputs.GetSafe("name", <plant value or default>)`.
 
-## One simulation per behaviour, written in C/C++
+## New case: input document or new simulation
 
-CppModel is for C/C++ developers, and a simulation is C/C++ code: use that to describe what is
-being tested. When a new behaviour or use case needs testing, write a new simulation for it (or a
-new step in the simulation that already covers that behaviour) rather than feeding more cases
-into one large, generic simulation through external input files.
+Before writing any code for a new case, decide which of the two it is:
 
-- **Write a new simulation** when the case involves logic: stimuli that react to the system's
-  state ("press stop once the lift is half way"), sequences and interlocks, injected faults, a
-  different controller or plant variant, or assertions of its own. Code says these exactly, is
-  checked by the compiler, and is read and reviewed like the rest of the project. An input
-  document can only give time series and constants, so it can't express them.
-- **Use input documents and parameters** (`--inputs`, `cppmodel:simulation-inputs`,
-  `cppmodel:parameter-sweep`) only to vary the *values* of a behaviour the simulation already
-  describes: tuning a constant, sweeping a range, replaying an operator profile from a field log
-  (`cppmodel:experiment-design`/`experiment-reconcile`). If a request needs more than different
-  values, it's a new simulation.
+- **It can be expressed by inputs and/or parameters alone**: different values, time series or
+  constants for what an existing simulation already does (a setpoint profile, another load, a
+  tuned gain, an operator profile from a field log, a sweep). **Don't write another C/C++ file**
+  and don't edit the simulation. Run the existing one with an input document (`--inputs`,
+  `cppmodel:simulation-inputs`, or `cppmodel:parameter-sweep` for many), committed as a scenario
+  file with its own `ctest` test if it should stay.
+- **It needs different logic or flow**: anything inputs and parameters can't express, such as
+  stimuli that react to the system's state ("press stop once the lift is half way"), a different
+  sequence of steps, injected faults, a different controller or plant variant, or checks of its
+  own. **Write another simulation** for it, in C/C++, rather than growing an existing one into a
+  generic simulation driven by switches. CppModel is for C/C++ developers: code says this
+  exactly, is checked by the compiler, and is reviewed like the rest of the project.
+
+If unsure, try to write the input document first. If the case can't be stated in it without
+pretending (a time series standing in for "when X happens"), it's another simulation.
+
 - **Keep new simulations cheap.** Put the shared wiring (plant, controller, the per-cycle copy
   between them, common checks) in the project's own helper, header or base class, so each new
   simulation is mostly its step schedule and assertions. Reuse an existing one if the project has
@@ -210,7 +213,7 @@ value, then `CppModel_destroy(sim)`. Either way, cross the boundary with
 The simulation still needs a step schedule chaining the steps of its behaviour in one file, using
 whatever mechanism the chosen path above provides (a `steps` map/vector, or `InternalStep_ts` +
 `RunInternalSteps`). Keep the steps to that one behaviour; an unrelated behaviour gets its own
-simulation ("One simulation per behaviour" above). Give each distinct scenario a fresh `Init`-style reset function beforehand,
+simulation ("New case: input document or new simulation" above). Give each distinct scenario a fresh `Init`-style reset function beforehand,
 unless deliberately continuing from the previous scenario's end state (also a valid, commonly used
 pattern - e.g. confirming a signal set in one step has the expected effect at the very start of
 the next).

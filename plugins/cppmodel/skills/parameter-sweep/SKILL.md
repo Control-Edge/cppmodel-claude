@@ -7,7 +7,7 @@ description: Run a CppModel simulation many times over a range of parameter valu
 
 A sweep varies the values of one behaviour the simulation already describes. Cases that differ in
 logic (different sequences, faults, variants or checks) are separate simulations written in C/C++,
-not sweep variants (`cppmodel:simulation-testing`, "One simulation per behaviour").
+not sweep variants (`cppmodel:simulation-testing`, "New case: input document or new simulation").
 
 This builds on `cppmodel:simulation-inputs`. Read that skill's "What this is" and step 3 (the rules
 for authoring inputs) first; they apply to every run here. In short:
@@ -227,11 +227,11 @@ Point the user at the web UI for any run they want to inspect:
 ## 8. Follow-ups worth offering
 
 - **A failing combination should become a permanent test**, so it's covered without a sweep.
-  Prefer code: a simulation (or step) that sets those conditions and checks the expected outcome
-  in C/C++ (`cppmodel:simulation-testing`, "One simulation per behaviour"). A committed scenario
-  file (`cppmodel:simulation-inputs`) is enough only when the point is purely values of the same
-  behaviour. Posted documents are one-shot, so a scenario that isn't in the repo isn't part of the
-  test suite.
+  The point is inputs and parameters only, so commit its run document as a scenario file with its
+  own `ctest` test (`cppmodel:simulation-inputs`, "In CI" below); no new C/C++ file. Only if
+  covering it needs different logic or flow is it another simulation (`cppmodel:simulation-testing`,
+  "New case: input document or new simulation"). Posted documents are one-shot, so a scenario
+  that isn't in the repo isn't part of the test suite.
 - **To find out why a combination fails**, fetch its execution with `get_binary_runs` (`start` =
   its index, `count: 1`). Then follow `cppmodel:simulation-testing`'s "Debugging a failure"
   section.
