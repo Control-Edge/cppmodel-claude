@@ -141,6 +141,13 @@ pretending (a time series standing in for "when X happens"), it's another simula
 - **Name each simulation after the behaviour it tests**, give it its own target, and register it
   with `ctest` (below). Each one gets its own execution history in the workspace and its own
   pass/fail in CI, so a failure points straight at the behaviour that broke.
+- **One executable, exactly one simulation name.** A simulation is a single entity in the
+  workspace, and its executions are followed by its name. Pass the name as a fixed literal
+  (`CMODEL_SIMULATE("Name", ...)`, `CppModel_create("Name", ...)`, `name` in the C++
+  constructor). Never derive it from a parameter, argument, environment variable or input
+  document, and never run two simulations from one `main()`. No two executables share a name
+  either, or their histories mix. Input-document variants of one executable run under its one
+  name; each execution records the inputs it ran with, which tells them apart.
 
 ## Language: C or C++
 
@@ -333,17 +340,21 @@ script to reconstruct the trace - the tool already returns it. For a long run, c
 
 Workflow:
 
-1. Find where `CppModel.StepResult` first drops to 0 in the returned time series. If the
-   simulation uses verification rules (SDK 0.11.0+), start from the parameters instead: each
-   failed rule's `CppModel.Verify.<name>` gives its `explanation` and `violations` (time
-   intervals in seconds), and its output series of the same name drops to 0 where it first
-   failed. See `cppmodel:verification`.
-2. Cross-reference `internalStepNumber`'s transitions to identify which step function was running
-   at that timestamp, and the local time within that step (absolute time minus the step's start
+1. Find **every** interval where `CppModel.StepResult` is 0 in the returned time series, not
+   just the first. A run is a snapshot of the whole sequence, and it carries on past a failing
+   cycle, so one trace holds all its failures: list them all before fixing anything, and don't
+   rerun to find the next one. If the simulation uses verification rules (SDK 0.11.0+), start from
+   the parameters instead: each failed rule's `CppModel.Verify.<name>` gives its `explanation` and
+   all its `violations` (time intervals in seconds), and its output series of the same name drops
+   to 0 where it first failed. See `cppmodel:verification`.
+2. For each failure, cross-reference `internalStepNumber`'s transitions to identify which step
+   function was running at that timestamp, and the local time within that step (absolute time minus the step's start
    time).
 3. Look at the other signals' values at that same timestamp to see what state the model/controller
    was actually in - usually enough to tell whether the assertion's logic is wrong, its timing is
-   wrong, or the code under test has a real bug. A fix to controller code (code that ships to the
+   wrong, or the code under test has a real bug. Group failures with one cause: a later one can
+   be the aftermath of an earlier one when the system didn't get back to a known state in between.
+   A fix to controller code (code that ships to the
    target) follows `cppmodel:coding-standard`.
 4. Fix, rebuild, rerun, re-fetch, and confirm the trace is clean end to end (`StepResult` never
    dips to 0 anywhere) - not just that the process exit code was 0. With SDK 0.10.0+, the tries

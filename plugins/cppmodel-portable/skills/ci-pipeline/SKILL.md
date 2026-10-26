@@ -235,27 +235,41 @@ instead of printing a browser sign-in link and waiting 60 seconds per simulation
 Let `ctest`'s own nonzero exit code fail the job everywhere - don't wrap it in something that
 swallows the exit code.
 
-**Scenarios and sweeps (only when the user asks for them)**: a case that differs from an existing
-simulation only in inputs and/or parameters is a committed input document and a `ctest` test that
-passes it, with no new C/C++ file; a case that needs different logic or flow is another simulation
-with its own test (`cppmodel:simulation-testing`, "New case: input document or new simulation").
-A simulation
-that must run with specific input or parameter values, or over a set of them, needs nothing but
-the library and `ctest`
-(SDK 0.10.0+). Each scenario or sweep point is an inputs document committed with the project, in
-the shape `set_inputs` takes (`{inputs, parameters}`), and its own test that passes it with
-`--inputs`:
+A case that differs from an existing simulation only in inputs and/or parameters is a committed
+input document and a `ctest` test that passes it with `--inputs`, with no new C/C++ file; a case
+that needs different logic or flow is another simulation with its own test
+(`cppmodel:simulation-testing`, "New case: input document or new simulation"). Both need nothing
+but the library and `ctest` (SDK 0.10.0+). The documents have the shape `set_inputs` takes
+(`{inputs, parameters}`). Scenarios and sweeps are set up differently:
+
+**Scenarios (only when the user asks for them)**: inputs are time series, so several scenarios
+can be chained along the time axis of one document (nominal, then heavy demand, then stop-and-go,
+each starting after the system has returned to a known state) and run as one test. That is the
+point of a simulation: one run is a snapshot of the whole sequence for that behaviour, and its
+trace shows every failure in it, instead of a failure stopping the picture or being scattered
+over many tests that each show part of it. Split them into separate documents only where they
+need different parameters, or where one is meant to fail as a whole (`WILL_FAIL`):
 
 ```cmake
-foreach(scenario IN ITEMS nominal heavy-load cold-start)
-    add_test(NAME VelocityProfile-${scenario}
-             COMMAND VelocityProfile --inputs ${CMAKE_CURRENT_SOURCE_DIR}/scenarios/${scenario}.json)
-endforeach()
-# A point that is meant to fail (e.g. beyond the controller's limit) is still a passing test:
-set_tests_properties(VelocityProfile-heavy-load PROPERTIES WILL_FAIL TRUE)
+add_test(NAME VelocityProfile-scenarios
+         COMMAND VelocityProfile --inputs ${CMAKE_CURRENT_SOURCE_DIR}/scenarios/velocity-profiles.json)
 ```
 
-- **Writing the documents.** Write them with `cppmodel:simulation-inputs` (one scenario) or
+**Sweeps (only when the user asks for them)**: parameters are constants for a whole run, so every
+parameter set needs its own run of the simulation: one document and one test per point.
+
+```cmake
+foreach(point IN ITEMS accel-2 accel-4 accel-6)
+    add_test(NAME VelocityProfile-${point}
+             COMMAND VelocityProfile --inputs ${CMAKE_CURRENT_SOURCE_DIR}/sweeps/${point}.json)
+endforeach()
+# A point that is meant to fail (e.g. beyond the controller's limit) is still a passing test:
+set_tests_properties(VelocityProfile-accel-6 PROPERTIES WILL_FAIL TRUE)
+```
+
+For both:
+
+- **Writing the documents.** Write them with `cppmodel:simulation-inputs` (scenarios) or
   `cppmodel:parameter-sweep` (one document per point). Both check the names against what the
   simulation reads before anything is committed. A misspelled name silently runs with the code's
   fallback.

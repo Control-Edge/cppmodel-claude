@@ -19,8 +19,9 @@ A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
   reads, validates the document, and passes it to the binary with `--inputs` (SDK 0.10.0+; older
   SDKs get it posted right before the run). It can explore values with local runs first. It then
   confirms from the recorded execution that the values were really used.
-- **`cppmodel:parameter-sweep`** - runs a simulation over a grid or list of parameter values and
-  input profiles: a run of the binary with that run's document per run (`--inputs`, or `set_inputs`
+- **`cppmodel:parameter-sweep`** - runs a simulation over a grid or list of parameter values, one
+  restart per parameter set (input profiles are chained in time within each run): a run of the
+  binary with that run's document per run (`--inputs`, or `set_inputs`
   before SDK 0.10.0), and one `get_binary_runs` call that checks every run used its values. A
   coarse exploratory pass can run locally. Then it reports the
   pass/fail map, where the boundary lies, and the metrics you care about. Nothing is built besides

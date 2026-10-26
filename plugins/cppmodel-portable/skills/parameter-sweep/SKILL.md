@@ -1,6 +1,6 @@
 ---
 name: parameter-sweep
-description: "Run a CppModel simulation many times over a range of parameter values and/or alternative input profiles (a parameter sweep, sensitivity study, or scenario matrix), without editing or rebuilding the simulation - each run's inputs/parameters are passed to the binary with --inputs (SDK 0.10.0+) or posted through the cppmodel MCP server's set_inputs right before it executes, and the whole batch is verified afterwards from the execution records in one get_binary_runs call. Designs the sweep with the user, runs it, and reports which combinations pass or fail, where the pass/fail boundary lies, and the metrics the user cares about. Use when asked to sweep, vary, or tune a parameter, test robustness across input scenarios, find the limit at which a simulation starts failing, or compare several input profiles. Cases that differ in logic rather than values are separate simulations (cppmodel:simulation-testing), not sweep variants."
+description: "Run a CppModel simulation many times over a range of parameter values (a parameter sweep or sensitivity study; each parameter set is a restart, while input profiles are chained in time within each run), without editing or rebuilding the simulation - each run's inputs/parameters are passed to the binary with --inputs (SDK 0.10.0+) or posted through the cppmodel MCP server's set_inputs right before it executes, and the whole batch is verified afterwards from the execution records in one get_binary_runs call. Designs the sweep with the user, runs it, and reports which combinations pass or fail, where the pass/fail boundary lies, and the metrics the user cares about. Use when asked to sweep, vary, or tune a parameter, test robustness across parameter ranges, or find the limit at which a simulation starts failing. Cases that differ in logic rather than values are separate simulations (cppmodel:simulation-testing), not sweep variants."
 ---
 
 ## Reading notes
@@ -85,19 +85,23 @@ A misspelled name silently uses its fallback, and the server records it like any
 
 Agree on:
 
-- **What varies.** For parameters, give explicit values
+- **What varies: parameters.** Give explicit values
   (`"Max Acceleration [m/s^2]": [2, 3, 4, 5, 6]`). Pick the range from the physics or the
-  requirement, and include the current value so one run reproduces today's behaviour. For inputs,
-  define named variants of a whole series (`"slow"`, `"fast"`, `"stop-and-go"`...), authored per
-  `cppmodel:simulation-inputs` step 3. A varied input replaces the whole series with that label,
-  not individual points. In a controller or complete-system simulation the variants are
-  controller inputs (operator command profiles, setpoint steps), never plant actuator commands:
-  the plant is feedback and reacts to whatever the controller does.
+  requirement, and include the current value so one run reproduces today's behaviour. Parameters
+  are constants for a whole run, so each parameter set is a restart of the simulation: one run.
+- **Input profiles are chained, not swept.** Inputs are time series, so several profiles
+  (`"slow"`, `"fast"`, `"stop-and-go"`...) go one after another along the time axis of the same
+  document, each starting once the system is back in a known state (at rest, setpoint reached),
+  authored per `cppmodel:simulation-inputs` step 3. Every run then covers all of them, its trace
+  shows every failure across them, and the run count doesn't multiply. Make a profile a separate run only if it can't start from a state the
+  run can return to. In a controller or complete-system simulation the profiles are controller
+  inputs (operator command profiles, setpoint steps), never plant actuator commands: the plant is
+  feedback and reacts to whatever the controller does.
 - **Shape.**
-  - **Grid**: every combination of the listed parameter values and input variants.
+  - **Grid**: every combination of the listed parameter values.
   - **Runs**: an explicit list, for one-at-a-time sensitivity, hand-picked corner cases, or one run
     per planned field run (`cppmodel:experiment-design`).
-  - A grid's run count is the product of all the list lengths. State that number.
+  - A grid's run count is the product of the parameter list lengths. State that number.
 - **What stays fixed.** Every run's document starts from the latest execution's `inputs` and
   `parameters` (`get_latest_result`), with only the varied names changed. `set_inputs` needs a
   complete document, since a name left out uses its fallback. If that record consumed a posted
@@ -226,7 +230,8 @@ Each run in `get_binary_runs` has its `index`, `passed` (every cycle's `CppModel
   with the fast profile only".
 - **Metrics from the execution records.** Fetch the series agreed in step 3 with `signals`.
   Series are change-compressed (`x` = the times the value changed, plus the end), so read them
-  with hold-last-value. Compute the metrics from these records; a short one-off computation over
+  with hold-last-value. With chained input profiles, compute each metric per profile over its
+  time window in the document. Compute the metrics from these records; a short one-off computation over
   them is fine. They are the API's own data. Never search the project for other result files, or
   re-derive values some other way. For a sweep from an earlier session, `sweep.json`'s
   `fingerprint` and `start` fetch the runs again in order.
@@ -263,6 +268,6 @@ was re-posted.
 A sweep that should keep running in CI needs no tool (SDK 0.10.0+). Copy the run documents worth
 keeping (`<out>/runs/NNN.json`, renamed after what they test) into the project. Then add one
 `ctest` test per document that runs the binary with `--inputs <document>`. Mark a point meant to
-fail with `WILL_FAIL`. `cppmodel:ci-pipeline`'s "Scenarios and sweeps" shows the CMake. Every test
+fail with `WILL_FAIL`. `cppmodel:ci-pipeline`'s "Sweeps" shows the CMake. Every test
 submits its execution, and the exit code is the result. With an SDK before 0.10.0, recommend
 updating it (`cppmodel:update-dependencies`) first.

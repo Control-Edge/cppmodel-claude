@@ -123,6 +123,9 @@ by id later. So:
 - **Keep simulation names stable.** The history is per name. A renamed simulation starts with an
   empty history and can't be compared with the old one by id, so rename only on purpose and say
   that this is the consequence.
+- **One executable, one name.** Each simulation executable has exactly one fixed simulation name,
+  and no other executable uses it, so its executions can be followed as one history
+  (`cppmodel:simulation-testing`, "New case: input document or new simulation").
 - **Name executions when reporting.** When reporting a result, give its execution id, or for a run
   of a batch its fingerprint and index (and the UI link: `<uiUrl>/simulations/<name>`), so the user
   and later sessions can find exactly that run.

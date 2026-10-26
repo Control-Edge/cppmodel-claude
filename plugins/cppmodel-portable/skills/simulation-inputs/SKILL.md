@@ -1,6 +1,6 @@
 ---
 name: simulation-inputs
-description: "Run a CppModel simulation with specific inputs (time series read by CppModel_getInput* / inputs[\"...\"]) and parameters (constants read by CppModel_getParameter* / parameters[\"...\"]) without editing or rebuilding it: passed to the binary with --inputs <file> (SDK 0.10.0+), or posted through the cppmodel MCP server's set_inputs right before a run with older SDKs. Finds the exact names the simulation reads, builds and validates the input document, runs the simulation with it (exploring locally first if useful), and confirms from the execution record that the values were really applied. Use when asked to run a simulation with given inputs/parameters or a named scenario, to try \"what if <parameter> = X\", or to see which inputs and parameters a simulation reads. For many runs over a range of values, use cppmodel:parameter-sweep instead. For a case needing its own logic (sequences, faults, its own checks), not just values, write a new simulation (cppmodel:simulation-testing)."
+description: "Run a CppModel simulation with specific inputs (time series read by CppModel_getInput* / inputs[\"...\"]) and parameters (constants read by CppModel_getParameter* / parameters[\"...\"]) without editing or rebuilding it: passed to the binary with --inputs <file> (SDK 0.10.0+), or posted through the cppmodel MCP server's set_inputs right before a run with older SDKs. Finds the exact names the simulation reads, builds and validates the input document, runs the simulation with it (exploring locally first if useful), and confirms from the execution record that the values were really applied. Use when asked to run a simulation with given inputs/parameters or a named scenario, to try \"what if <parameter> = X\", to compare input profiles, or to see which inputs and parameters a simulation reads. For many runs over a range of values, use cppmodel:parameter-sweep instead. For a case needing its own logic (sequences, faults, its own checks), not just values, write a new simulation (cppmodel:simulation-testing)."
 ---
 
 ## Reading notes
@@ -156,6 +156,14 @@ Inputs:
   - A ramp has to be written as a staircase of points. Going finer than the simulation step size
     gains nothing, because the binary only reads at step boundaries.
 - **Integral types get whole numbers within the type's range.** Booleans are `0`/`1`.
+- **Several scenarios can share one document.** Inputs are time series, so scenarios can be
+  chained along the time axis (nominal, then a load step, then stop-and-go), each starting once
+  the system is back in a known state, and one run covers them all. That's the benefit, not a
+  compromise: the one trace shows every failure across the sequence, so the user explores them
+  all from a single run instead of rerunning case by case. Lengthen the run to fit if
+  the simulation honours `CppModel.SimulationTime` (see Parameters below). Parameters can't be
+  chained: they're constant for the whole run, so a different parameter set is another run
+  (`cppmodel:parameter-sweep`).
 - **Write the scenario from the perspective step 1 settled.** In a closed-loop simulation a
   scenario is what the operator or the surrounding system does to the controller ("press start at
   1 s, raise the setpoint at 5 s"), not what the actuators do; the plant produces the rest. A
