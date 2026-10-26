@@ -1,6 +1,6 @@
 ---
 name: cppmodel:simulation-testing
-description: Write, extend, or debug a CppModel-based simulation test, in C (the SDK's CModel.h API - CppModel_* functions and its CMODEL_CYCLIC/CMODEL_SIMULATE macros - directly or via a project's own helpers) or C++ (cppmodel::Simulation from cppmodel.hpp, CppModelBase::Simulation in older code, directly or via a project's own wrapper class). Use when asked to add test coverage to a CppModel simulation, when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data.
+description: Write, extend, or debug a CppModel-based simulation test, in C (the SDK's CModel.h API - CppModel_* functions and its CMODEL_CYCLIC/CMODEL_SIMULATE macros - directly or via a project's own helpers) or C++ (cppmodel::Simulation from cppmodel.hpp, CppModelBase::Simulation in older code, directly or via a project's own wrapper class). Use when asked to add test coverage to a CppModel simulation, to test a new behaviour or use case (preferably as its own simulation written in C/C++ rather than input files fed to an existing one), when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data.
 ---
 
 ## Requirements: check credentials before running or debugging anything
@@ -43,22 +43,29 @@ what the simulation runs:
 - **The controller, or the complete system** (controller and plant together): inputs are the
   **controller's** inputs - its `inputs`/`in_signals` struct: sensor signals, operator commands,
   setpoints, signals from other units - under the controller's own names. The plant is there as
-  feedback, not as the thing being driven by the document. Each cycle the controller's outputs
-  drive the plant's actuators directly in code, and the plant **generates or modifies** the
-  controller's inputs:
-  - **generated**: an input the plant models (a limit switch, a position counter, a pressure). The
-    plant's value goes into the controller's input; don't also read it with `getInput`, so the
-    record doesn't show a value the controller never saw. Publish it as an output instead.
-  - **modified**: read from the document under the controller's name, then changed by the plant
-    before the controller sees it. E.g. a posted pressure the plant adds its load pressure to, or
-    an operator command the mechanism physically blocks at an end-stop.
-  - **passed through**: an input the plant has nothing to do with (an operator button, a setpoint,
-    a mode switch) goes from the document to the controller unchanged.
+  feedback, not as the thing being driven by the document. Each cycle runs in this order:
 
-  Plant actuators are never inputs here: they come from the controller. Outputs are the
-  controller's outputs (the actuator commands), the controller inputs as they reached it after
-  the plant, and any plant state worth seeing. Without a plant model, every controller input comes
-  straight from the document.
+  1. **Evaluate the plant**, its actuators set from the controller's previous outputs.
+  2. **Read every controller input with `getInput`**. For an input the plant models (a limit
+     switch, a position counter, a pressure), pass the plant's value as the fallback. For one the
+     plant has nothing to do with (an operator button, a setpoint, a mode switch), pass a constant
+     default.
+  3. **Evaluate the controller.**
+  4. **Publish with `setOutput`.**
+
+  With nothing posted for an input, the controller gets the plant's value and the record shows
+  exactly that, since an execution records the fallback it used. A posted value overrides the
+  plant for that input, for the whole run (the last point holds to the end). That's intended: it
+  is how a scenario forces a sensor (stuck switch, failed transducer). So post only the inputs the
+  scenario sets; leaving a plant-fed input out keeps the loop closed.
+
+  The focus is the controller, so its interface is the simulation's interface. Don't define the
+  plant's inputs and outputs as signals of their own: where the two are cross-linked, plant inputs
+  are the controller's outputs and plant outputs are the controller's inputs, under the
+  controller's names. Outputs are the controller's outputs (the actuator commands), plus only those
+  plant signals the controller doesn't observe (the true position when the controller only sees a
+  limit switch, a pressure no sensor reports). Plant actuators are never inputs here. Without a
+  plant model, every controller input comes straight from the document.
 
 Pick the case before writing the per-cycle callback; it decides the input names. Don't mix them:
 a closed-loop simulation never takes plant actuator commands as inputs, and a plant-alone one
@@ -67,28 +74,55 @@ never takes controller inputs. One cycle of a closed-loop simulation, in C:
 ```c
 CMODEL_CYCLIC()
 {
-    /* plant feedback from the previous cycle's commands */
+    /* 1. plant, driven by the previous cycle's controller outputs */
     plant.actuators.motor_up = ctrl.outputs.motor_up;
     plant.actuators.motor_down = ctrl.outputs.motor_down;
     plantModelCyclic(&plant, currentTime_ms);
 
-    /* controller inputs: passed through, generated, modified */
+    /* 2. controller inputs: the plant's value is the fallback, a posted value overrides it */
     ctrl.inputs.start_button = CppModel_getInputU8(self, "Start Button", 0);
-    ctrl.inputs.upper_limit = plant.sensors.upper_limit;
-    ctrl.inputs.pressure_bar = CppModel_getInputF64(self, "Pressure [bar]", 0.0) + plant.load_pressure_bar;
+    ctrl.inputs.upper_limit = CppModel_getInputU8(self, "Upper Limit", plant.sensors.upper_limit);
+    ctrl.inputs.pressure_bar = CppModel_getInputF64(self, "Pressure [bar]", plant.sensors.pressure_bar);
 
+    /* 3. controller */
     controller(&ctrl);
 
+    /* 4. controller outputs */
     CppModel_setOutputU8(self, "Motor Up", ctrl.outputs.motor_up);
     CppModel_setOutputU8(self, "Motor Down", ctrl.outputs.motor_down);
-    CppModel_setOutputU8(self, "Upper Limit", ctrl.inputs.upper_limit);
-    CppModel_setOutputF64(self, "Pressure Seen [bar]", ctrl.inputs.pressure_bar);
+    /* plant signal the controller doesn't observe */
+    CppModel_setOutputF64(self, "Position [mm]", plant.position_mm);
     /* ... step schedule, CppModel.StepResult ... */
 }
 ```
 
-The C++ shape is the same: the plant is a member, its fields are copied to and from the
-controller's struct in `RunCyclic`, and only the controller's inputs are read from `inputs`.
+The C++ shape is the same: the plant is a member, evaluated first in `RunCyclic`, and each
+controller input is read with `inputs.GetSafe("name", <plant value or default>)`.
+
+## One simulation per behaviour, written in C/C++
+
+CppModel is for C/C++ developers, and a simulation is C/C++ code: use that to describe what is
+being tested. When a new behaviour or use case needs testing, write a new simulation for it (or a
+new step in the simulation that already covers that behaviour) rather than feeding more cases
+into one large, generic simulation through external input files.
+
+- **Write a new simulation** when the case involves logic: stimuli that react to the system's
+  state ("press stop once the lift is half way"), sequences and interlocks, injected faults, a
+  different controller or plant variant, or assertions of its own. Code says these exactly, is
+  checked by the compiler, and is read and reviewed like the rest of the project. An input
+  document can only give time series and constants, so it can't express them.
+- **Use input documents and parameters** (`--inputs`, `cppmodel:simulation-inputs`,
+  `cppmodel:parameter-sweep`) only to vary the *values* of a behaviour the simulation already
+  describes: tuning a constant, sweeping a range, replaying an operator profile from a field log
+  (`cppmodel:experiment-design`/`experiment-reconcile`). If a request needs more than different
+  values, it's a new simulation.
+- **Keep new simulations cheap.** Put the shared wiring (plant, controller, the per-cycle copy
+  between them, common checks) in the project's own helper, header or base class, so each new
+  simulation is mostly its step schedule and assertions. Reuse an existing one if the project has
+  it.
+- **Name each simulation after the behaviour it tests**, give it its own target, and register it
+  with `ctest` (below). Each one gets its own execution history in the workspace and its own
+  pass/fail in CI, so a failure points straight at the behaviour that broke.
 
 ## Language: C or C++
 
@@ -173,9 +207,10 @@ value, then `CppModel_destroy(sim)`. Either way, cross the boundary with
 
 ### Either way
 
-The simulation still needs a step schedule chaining multiple test scenarios in one file, using
+The simulation still needs a step schedule chaining the steps of its behaviour in one file, using
 whatever mechanism the chosen path above provides (a `steps` map/vector, or `InternalStep_ts` +
-`RunInternalSteps`). Give each distinct scenario a fresh `Init`-style reset function beforehand,
+`RunInternalSteps`). Keep the steps to that one behaviour; an unrelated behaviour gets its own
+simulation ("One simulation per behaviour" above). Give each distinct scenario a fresh `Init`-style reset function beforehand,
 unless deliberately continuing from the previous scenario's end state (also a valid, commonly used
 pattern - e.g. confirming a signal set in one step has the expected effect at the very start of
 the next).
@@ -296,7 +331,8 @@ Workflow:
    dips to 0 anywhere) - not just that the process exit code was 0. With SDK 0.10.0+, the tries
    in between can run without submitting: add `--results <out.json>` and read the trace from that
    file. Add `--inputs <file>` with the failing execution's `inputs` and `parameters` when it ran
-   with values other than the fallbacks. Once a fix looks right, do one recorded run the way the
+   with values other than the fallbacks, leaving out plant-fed inputs in a closed loop (the
+   recorded plant trace would override the plant), unless the failing run had them forced. Once a fix looks right, do one recorded run the way the
    failing one ran (plain, or with that `--inputs <file>`), and confirm the clean trace from that
    execution.
 5. Compare the new execution with the failing one through the history (`list_executions`, then
@@ -304,8 +340,10 @@ Workflow:
    was meant to change and nothing else. Don't add a temporary test or extra outputs to collect
    what the two executions already recorded.
 
-If the trace's `inputs`/`parameters` show values other than the source's fallbacks, this run
-consumed a document posted through the API or the web UI. Posted documents are one-shot: they
+If the trace's `inputs`/`parameters` show values other than the source's fallbacks (for a
+plant-fed input in a closed loop, other than what the plant would give, e.g. a switch that stays
+put while the plant's position passes it), this run consumed a document posted through the API or
+the web UI. Posted documents are one-shot: they
 affect only the account's next execution, whichever one that is, such as a `ctest` run or a CI
 job with the same login that happened to start first. See `cppmodel:simulation-inputs`.
 

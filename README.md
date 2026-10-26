@@ -69,8 +69,9 @@ A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
   which provider, platform(s), and compiler(s) to target from what CppModel actually publishes a
   prebuilt SDK for. Installs the plugin's `install-cppmodel.sh`/`.ps1` templates into the project
   if it doesn't already have an equivalent script, so CI and local dependency fetches share the
-  same logic regardless of provider. Scenarios and sweep points run as `ctest` tests with
-  `--inputs`; the pipeline needs nothing besides the SDK.
+  same logic regardless of provider. Each behaviour is its own simulation and `ctest` test; value
+  variants and sweep points run as `ctest` tests with `--inputs`. The pipeline needs nothing
+  besides the SDK.
 - **`cppmodel:setup-environment`** - first-time machine setup: detects the OS, architecture, C
   library, installed compilers/toolchains and build tools, compares them with the SDK builds
   CppModel actually publishes (one per OS and architecture from SDK 0.8), and lets you pick an

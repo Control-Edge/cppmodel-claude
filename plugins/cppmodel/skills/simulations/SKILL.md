@@ -221,8 +221,8 @@ local `cppmodel-requirements.json` (see `cppmodel:verification`, step 6).
 Whose inputs the `inputs` are depends on what the simulation runs (see
 `cppmodel:simulation-testing`'s "which side is being simulated" note). For a plant-alone
 simulation they are the plant's inputs (actuator commands) and outputs are its sensor readings.
-For a controller or complete-system simulation they are the controller's inputs (operator
-commands, setpoints, the sensor signals the plant doesn't generate), and outputs are its actuator
-commands plus the plant-generated signals it read. There, an input the plant modifies is recorded
-as posted, before the plant changed it: compare with its published output to see what the
-controller actually got.
+For a controller or complete-system simulation they are all of the controller's inputs, as the
+controller saw them: operator commands and setpoints, and the sensor signals the plant supplied
+as fallbacks (or a posted value that overrode the plant). Outputs are its actuator commands and
+plant signals the controller doesn't observe. There are no separate plant input/output series:
+the cross-linked plant signals are the controller's.

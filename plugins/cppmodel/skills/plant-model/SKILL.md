@@ -18,10 +18,14 @@ controller reads back. Which of these become the simulation's inputs depends on 
 
 - **The starter simulation this skill scaffolds runs the complete system**, so its inputs are the
   **controller's** inputs, under the controller's names. The controller's outputs drive the
-  model's `actuators` directly in code, and the model's `sensors` generate (or modify) the
-  controller's inputs - those are not read from the document. What's left for the input document
-  is what the plant doesn't produce: operator commands, setpoints, mode switches, and anything the
-  plant only modifies. Plant actuator commands are never inputs here.
+  model's `actuators` directly in code. Each cycle evaluates the model first, then reads every
+  controller input with `getInput`, passing the model's `sensors` value as the fallback for the
+  inputs it models, so the plant feeds the controller unless a scenario posts a value to override
+  it. Operator commands, setpoints and mode switches get constant fallbacks and are what input
+  documents normally set. Plant actuator commands are never inputs here, and the simulation defines
+  no plant inputs/outputs of its own: the cross-linked ones are the controller's outputs/inputs.
+  It publishes only the plant signals the controller doesn't observe (e.g. the true position when
+  the controller sees only a limit switch).
 - **A plant-alone simulation** (no controller, e.g. to check the model's timing by itself) is the
   only case where the inputs are the plant's: its `actuators` read with `CppModel_getInput*`, its
   `sensors` published with `CppModel_setOutput*`. Build one only if the user asks for it.
@@ -36,8 +40,8 @@ controller reads back. Which of these become the simulation's inputs depends on 
      already-existing C++ models in this kind of project tend to use), unless the project's own
      convention already splits declaration/definition into a `.h`/`.cpp` pair - check first.
 2. A starter simulation file skeleton wiring the new model's actuators/sensors to the controller
-   under test, reading the controller's remaining inputs (the ones the plant doesn't generate)
-   from the input document, with no real test scenarios yet - hand off to the `cppmodel:simulation-testing`
+   under test, reading each controller input with the model's value (or a constant default) as
+   the fallback, with no real test scenarios yet - hand off to the `cppmodel:simulation-testing`
    skill to fill those in and to know how that skeleton should be shaped for this project.
 
 If a single request asks for both a new model and a working simulation in one go, still do these
@@ -81,18 +85,18 @@ with a later one, push on it rather than filling the gap with a guess.
    controller code already outputs - look at its `outputs` struct.
 3. **What does the controller read back (sensors)?** Booleans from limit/proximity switches,
    a position/pulse counter, a pressure or photocell reading. Match the controller's `inputs`
-   struct. Go through that struct field by field: the plant generates or modifies the fields that
-   are sensors, and the rest (operator commands, setpoints, signals from other units) become the
-   simulation's inputs.
+   struct. Go through that struct field by field: the plant supplies the fields that are sensors
+   (as their fallback), and the rest (operator commands, setpoints, signals from other units) get
+   constant defaults that scenarios set.
 4. **How does it interact with the operator, the environment, or other mechanisms?** E.g. a manual
    override or e-stop the operator can trigger independent of the controller, ambient conditions
    (temperature, load) that change its behavior, or interlocks/shared state with a neighboring
    mechanism (one machine can't move until another is clear). For each one, ask specifically
    whether the real controller actually commands or reads it. If the controller reads it directly
-   (e.g. an e-stop wired to the controller), it's a controller input: read it from the input
-   document under the controller's name, not through the model. If the plant shapes what the
-   controller reads (e.g. a sensor whose reading the operator's override changes), it belongs in
-   `sensors`, and the plant modifies that input. If it only changes the plant's behaviour and the
+   (e.g. an e-stop wired to the controller), it's a controller input with a constant default, set
+   by scenarios, not through the model. If the plant shapes what the controller reads (e.g. a
+   sensor the operator's override changes), it belongs in `sensors` and supplies that input's
+   fallback. If it only changes the plant's behaviour and the
    controller never sees it (load, ambient temperature), it's model config/state, set from a
    parameter or by the simulation's step schedule - don't force it into `actuators`/`sensors` just
    because it's related to them.

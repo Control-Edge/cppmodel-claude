@@ -1,9 +1,13 @@
 ---
 name: cppmodel:parameter-sweep
-description: Run a CppModel simulation many times over a range of parameter values and/or alternative input profiles (a parameter sweep, sensitivity study, or scenario matrix), without editing or rebuilding the simulation - each run's inputs/parameters are passed to the binary with --inputs (SDK 0.10.0+) or posted through the cppmodel MCP server's set_inputs right before it executes, and the whole batch is verified afterwards from the execution records in one get_binary_runs call. Designs the sweep with the user, runs it, and reports which combinations pass or fail, where the pass/fail boundary lies, and the metrics the user cares about. Use when asked to sweep, vary, or tune a parameter, test robustness across input scenarios, find the limit at which a simulation starts failing, or compare several input profiles.
+description: Run a CppModel simulation many times over a range of parameter values and/or alternative input profiles (a parameter sweep, sensitivity study, or scenario matrix), without editing or rebuilding the simulation - each run's inputs/parameters are passed to the binary with --inputs (SDK 0.10.0+) or posted through the cppmodel MCP server's set_inputs right before it executes, and the whole batch is verified afterwards from the execution records in one get_binary_runs call. Designs the sweep with the user, runs it, and reports which combinations pass or fail, where the pass/fail boundary lies, and the metrics the user cares about. Use when asked to sweep, vary, or tune a parameter, test robustness across input scenarios, find the limit at which a simulation starts failing, or compare several input profiles. Cases that differ in logic rather than values are separate simulations (cppmodel:simulation-testing), not sweep variants.
 ---
 
 ## How a sweep works
+
+A sweep varies the values of one behaviour the simulation already describes. Cases that differ in
+logic (different sequences, faults, variants or checks) are separate simulations written in C/C++,
+not sweep variants (`cppmodel:simulation-testing`, "One simulation per behaviour").
 
 This builds on `cppmodel:simulation-inputs`. Read that skill's "What this is" and step 3 (the rules
 for authoring inputs) first; they apply to every run here. In short:
@@ -83,7 +87,9 @@ Agree on:
   `parameters` (`get_latest_result`), with only the varied names changed. `set_inputs` needs a
   complete document, since a name left out uses its fallback. If that record consumed a posted
   document (step 2 shows its values differ from the fallbacks), the base carries those values. Say
-  so, and offer a committed scenario file as the base instead.
+  so, and offer a committed scenario file as the base instead. In a closed-loop simulation, drop
+  the plant-fed inputs from the base (`cppmodel:simulation-inputs` step 3): posting the recorded
+  plant trace back would override the plant in every run.
 - **What to measure.** Pass/fail is always recorded (exit code, `CppModel.StepResult`). Ask what
   else matters: peak or overshoot of an output, settling time, the final value, the time an event
   first happens. Knowing this up front decides which signals to fetch in step 6. If the simulation
@@ -221,10 +227,11 @@ Point the user at the web UI for any run they want to inspect:
 ## 8. Follow-ups worth offering
 
 - **A failing combination should become a permanent test**, so it's covered without a sweep.
-  Either commit it as a scenario file (`cppmodel:simulation-inputs`), or add an explicit scenario
-  step to the simulation that sets those conditions in code (`cppmodel:simulation-testing`).
-  Posted documents are one-shot, so a scenario that isn't in the repo isn't part of the test
-  suite.
+  Prefer code: a simulation (or step) that sets those conditions and checks the expected outcome
+  in C/C++ (`cppmodel:simulation-testing`, "One simulation per behaviour"). A committed scenario
+  file (`cppmodel:simulation-inputs`) is enough only when the point is purely values of the same
+  behaviour. Posted documents are one-shot, so a scenario that isn't in the repo isn't part of the
+  test suite.
 - **To find out why a combination fails**, fetch its execution with `get_binary_runs` (`start` =
   its index, `count: 1`). Then follow `cppmodel:simulation-testing`'s "Debugging a failure"
   section.

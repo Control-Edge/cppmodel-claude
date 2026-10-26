@@ -104,8 +104,10 @@ Include only the sections with something real to say. Sections 1 to 4 are usuall
    (exercising the controller, not physical accuracy), and whether the simulation runs the plant
    alone or the controller with the plant as feedback.
 2. **Interface**: one table with columns signal, direction (actuator or sensor), source, type or
-   range, and meaning. Source is where the value comes from: the input document, the plant
-   (generated), the input document changed by the plant (modified), or the controller.
+   range, and meaning. Source is where the value comes from: the input document, the plant (as
+   the input's fallback, overridable), or the controller. In a
+   complete-system simulation list each cross-linked signal once, under the controller's name,
+   and add plant rows only for signals the controller doesn't observe.
 3. **Plant**: the per-cycle update laws in math (below), then one parameters table with columns
    name, default, unit, and source. Give the delta-per-cycle derivation as a single equation.
 4. **Controller**: a state diagram (below). Add a short guards table only if the guards don't fit

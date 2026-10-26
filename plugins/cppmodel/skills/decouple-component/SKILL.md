@@ -34,9 +34,10 @@ change even if this project's simulations are C++.
 This is the **controller** side of the plant/controller split described in
 `cppmodel:simulation-testing`. Once decoupled, this component is normally the real code under test,
 exercised against a simulated plant (`cppmodel:plant-model`) that serves as feedback. The
-simulation's inputs are this component's `in_signals`/`inputs`, under its own field names: the
-plant model's `sensors` generate or modify the ones it models, and the rest (operator commands,
-setpoints, signals from other units) come from the input document. Its `status`/`outputs` drive
+simulation's inputs are this component's `in_signals`/`inputs`, under its own field names, each
+read with `getInput` after the plant is evaluated: the plant model's `sensors` value is the
+fallback for the ones it models, a constant default for the rest (operator commands, setpoints,
+signals from other units), and a posted value overrides either. Its `status`/`outputs` drive
 the plant model's `actuators` directly in code and are published as outputs. Plant actuator
 commands are never inputs. Without a plant model, every one of its inputs comes from the document.
 

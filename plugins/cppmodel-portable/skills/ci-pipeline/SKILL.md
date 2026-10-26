@@ -235,8 +235,11 @@ instead of printing a browser sign-in link and waiting 60 seconds per simulation
 Let `ctest`'s own nonzero exit code fail the job everywhere - don't wrap it in something that
 swallows the exit code.
 
-**Scenarios and sweeps (only when the user asks for them)**: a simulation that must run with
-specific inputs or parameters, or over a set of values, needs nothing but the library and `ctest`
+**Scenarios and sweeps (only when the user asks for them)**: different behaviours are different
+simulations, each its own `ctest` test (`cppmodel:simulation-testing`, "One simulation per
+behaviour"); don't turn one generic simulation into many tests through input files. A simulation
+that must run with specific input or parameter values, or over a set of them, needs nothing but
+the library and `ctest`
 (SDK 0.10.0+). Each scenario or sweep point is an inputs document committed with the project, in
 the shape `set_inputs` takes (`{inputs, parameters}`), and its own test that passes it with
 `--inputs`:

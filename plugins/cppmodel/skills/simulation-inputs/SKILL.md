@@ -1,9 +1,14 @@
 ---
 name: cppmodel:simulation-inputs
-description: Run a CppModel simulation with specific inputs (time series read by CppModel_getInput* / inputs["..."]) and parameters (constants read by CppModel_getParameter* / parameters["..."]) without editing or rebuilding it: passed to the binary with --inputs <file> (SDK 0.10.0+), or posted through the cppmodel MCP server's set_inputs right before a run with older SDKs. Finds the exact names the simulation reads, builds and validates the input document, runs the simulation with it (exploring locally first if useful), and confirms from the execution record that the values were really applied. Use when asked to run a simulation with given inputs/parameters or a named scenario, to try "what if <parameter> = X", or to see which inputs and parameters a simulation reads. For many runs over a range of values, use cppmodel:parameter-sweep instead.
+description: Run a CppModel simulation with specific inputs (time series read by CppModel_getInput* / inputs["..."]) and parameters (constants read by CppModel_getParameter* / parameters["..."]) without editing or rebuilding it: passed to the binary with --inputs <file> (SDK 0.10.0+), or posted through the cppmodel MCP server's set_inputs right before a run with older SDKs. Finds the exact names the simulation reads, builds and validates the input document, runs the simulation with it (exploring locally first if useful), and confirms from the execution record that the values were really applied. Use when asked to run a simulation with given inputs/parameters or a named scenario, to try "what if <parameter> = X", or to see which inputs and parameters a simulation reads. For many runs over a range of values, use cppmodel:parameter-sweep instead. For a case needing its own logic (sequences, faults, its own checks), not just values, write a new simulation (cppmodel:simulation-testing).
 ---
 
 ## What this is
+
+This runs an existing simulation with different *values*. If the request needs logic the
+simulation doesn't already describe (stimuli that react to state, a sequence, a fault, a different
+variant, its own assertions), don't encode it in an input document: offer a new simulation in
+C/C++ instead (`cppmodel:simulation-testing`, "One simulation per behaviour").
 
 A simulation reads two kinds of external data:
 
@@ -96,16 +101,15 @@ simulated"):
 - **Plant alone** (no controller in the binary): the inputs are the plant's, its actuator commands
   and environment. Author them from the plant's point of view.
 - **Controller or complete system**: the inputs are the controller's, under its own names. The
-  plant is feedback: it generates some controller inputs and modifies others from the controller's
-  outputs. Author the document as what reaches the controller from outside (operator commands,
-  setpoints, other units' signals), and for a modified input, the value before the plant changes
-  it. Never write a plant actuator command into it: the controller produces those. A
-  plant-generated input can't be set from the document. If the user wants to force one (a stuck
-  sensor, a fault), say so; it needs a fault input or parameter in the simulation
-  (`cppmodel:simulation-testing`).
+  plant is feedback: it is evaluated first and supplies the fallback of each input it models
+  (sensors), so with nothing posted those inputs follow the plant. Author the document as what
+  reaches the controller from outside (operator commands, setpoints, other units' signals). Post
+  a plant-fed input only to force it on purpose (a stuck switch, a failed sensor): the posted
+  series replaces the plant's value for the whole run. Never write a plant actuator command into
+  it: the controller produces those.
 
-For each input, note in the table whether it passes through to the controller or the plant
-modifies it. Show the user the table (name, input or parameter, type, current or fallback value)
+For each input, note in the table whether its fallback comes from the plant or is a constant (from
+the source: what the `getInput` call passes). Show the user the table (name, input or parameter, type, current or fallback value)
 before authoring anything.
 
 ## 2. Check nothing is already pending
@@ -119,7 +123,10 @@ it.
 ## 3. Author and validate the document
 
 Start from the step-1 execution record's `inputs` and `parameters`, so everything the user didn't
-ask to change keeps today's values explicitly. Then apply the user's changes.
+ask to change keeps today's values explicitly. Then apply the user's changes. **In a closed-loop
+simulation, first drop every plant-fed input** from that base: the record holds the plant's trace
+from that run, and posting it back would replace the plant with a fixed replay and open the loop.
+Keep one only if the user asked to force it.
 
 Inputs:
 
@@ -159,15 +166,18 @@ Then call `set_inputs` with `dry_run: true`. A broken document comes back as an 
 every problem ("The document wasn't posted: ..."); fix them all. A valid one returns `posted:
 false` with `unrecognizedNames`, `notPosted` (`{inputs, parameters}`) and `warnings`. Treat every
 `unrecognizedNames` entry as a typo until the source proves otherwise, confirm every `notPosted`
-name is meant to use its fallback, and show the user any `warnings`.
+name is meant to use its fallback (plant-fed inputs in a closed loop are expected there), and show
+the user any `warnings`.
 
 Save the document as a file:
 
 - a one-off experiment goes in the scratch area;
-- a scenario worth repeating goes in the project, e.g.
+- a value variant worth repeating goes in the project, e.g.
   `simulations/scenarios/<simulation>/<scenario>.json` (match an existing convention).
 
-Ask the user which.
+Ask the user which. A scenario worth keeping that turned out to be more than values (it needed a
+particular order of events or its own check) belongs in code: offer a new simulation or step
+instead of the file.
 
 ## 4. Run with the document
 

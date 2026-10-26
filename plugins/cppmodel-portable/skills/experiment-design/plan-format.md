@@ -132,8 +132,9 @@ by `id` from the runs.
   setpoint signature).
 - `hypothesis`: what the model predicts and what each kind of miss would mean.
 - `simulation`: exactly the `inputs`/`parameters` posted for this run's planned execution, in
-  `set_inputs` format (input `x` in ms). The inputs are controller inputs the plant doesn't
-  generate (the operator's commands and setpoints), never plant actuator commands.
+  `set_inputs` format (input `x` in ms). The inputs are the controller inputs the operator
+  drives (commands, setpoints), never plant-fed sensor inputs (that would override the plant) or
+  plant actuator commands.
 - `prediction.index`: the planned execution the traces came from, as its run index under
   `model.binaryFingerprint` (`get_binary_runs`). `prediction.executionId` is set instead, and
   `index` is `null`, only when there's no fingerprint (SDK before 0.7.0). `passed` is its
