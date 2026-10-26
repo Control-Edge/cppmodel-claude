@@ -26,12 +26,20 @@ minimal" below for what that does and doesn't mean.
 
 ## Scope: this builds the plant side
 
-This skill assumes the **plant** is the component being simulated and the **controller** is the
-real code under test - see `cppmodel:simulation-testing`'s "which side is being simulated" note.
-Concretely: the model's `actuators` struct is what the controller commands into it (read via
-`CppModel_getInput*` in the simulation file), and its `sensors` struct is what it reports back to
-the controller (published via `CppModel_setOutput*`). If instead the controller is the side being
-simulated and the plant is real/external, this skill's shape doesn't apply as-is - the roles invert.
+The model is the simulated physical mechanism; the **controller** is the real code under test. The
+model's `actuators` struct is what the controller commands, and its `sensors` struct is what the
+controller reads back. Which of these become the simulation's inputs depends on what it runs (see
+`cppmodel:simulation-testing`'s "which side is being simulated" note):
+
+- **The starter simulation this skill scaffolds runs the complete system**, so its inputs are the
+  **controller's** inputs, under the controller's names. The controller's outputs drive the
+  model's `actuators` directly in code, and the model's `sensors` generate (or modify) the
+  controller's inputs - those are not read from the document. What's left for the input document
+  is what the plant doesn't produce: operator commands, setpoints, mode switches, and anything the
+  plant only modifies. Plant actuator commands are never inputs here.
+- **A plant-alone simulation** (no controller, e.g. to check the model's timing by itself) is the
+  only case where the inputs are the plant's: its `actuators` read with `CppModel_getInput*`, its
+  `sensors` published with `CppModel_setOutput*`. Build one only if the user asks for it.
 
 ## What this produces
 
@@ -43,7 +51,8 @@ simulated and the plant is real/external, this skill's shape doesn't apply as-is
      already-existing C++ models in this kind of project tend to use), unless the project's own
      convention already splits declaration/definition into a `.h`/`.cpp` pair - check first.
 2. A starter simulation file skeleton wiring the new model's actuators/sensors to the controller
-   under test, with no real test scenarios yet - hand off to the `cppmodel:simulation-testing`
+   under test, reading the controller's remaining inputs (the ones the plant doesn't generate)
+   from the input document, with no real test scenarios yet - hand off to the `cppmodel:simulation-testing`
    skill to fill those in and to know how that skeleton should be shaped for this project.
 
 If a single request asks for both a new model and a working simulation in one go, still do these
@@ -87,17 +96,20 @@ with a later one, push on it rather than filling the gap with a guess.
    controller code already outputs - look at its `outputs` struct.
 3. **What does the controller read back (sensors)?** Booleans from limit/proximity switches,
    a position/pulse counter, a pressure or photocell reading. Match the controller's `inputs`
-   struct.
+   struct. Go through that struct field by field: the plant generates or modifies the fields that
+   are sensors, and the rest (operator commands, setpoints, signals from other units) become the
+   simulation's inputs.
 4. **How does it interact with the operator, the environment, or other mechanisms?** E.g. a manual
    override or e-stop the operator can trigger independent of the controller, ambient conditions
    (temperature, load) that change its behavior, or interlocks/shared state with a neighboring
    mechanism (one machine can't move until another is clear). For each one, ask specifically
-   whether the real controller actually commands or reads it (e.g. an e-stop wired to the
-   controller as a real input) - if so, it's a genuine actuator/sensor and belongs in those structs
-   like anything else. If instead it's something only the simulation itself would inject to drive a
-   scenario (the controller never sees it directly), it's model config/state instead, poked
-   directly by the simulation's step schedule rather than crossing the
-   `CppModel_getInput*`/`setOutput*` boundary - don't force it into `actuators`/`sensors` just
+   whether the real controller actually commands or reads it. If the controller reads it directly
+   (e.g. an e-stop wired to the controller), it's a controller input: read it from the input
+   document under the controller's name, not through the model. If the plant shapes what the
+   controller reads (e.g. a sensor whose reading the operator's override changes), it belongs in
+   `sensors`, and the plant modifies that input. If it only changes the plant's behaviour and the
+   controller never sees it (load, ambient temperature), it's model config/state, set from a
+   parameter or by the simulation's step schedule - don't force it into `actuators`/`sensors` just
    because it's related to them.
 5. **Timing**: how long does a full traverse take in the real machine (e.g. "fully extends in
    about 2 seconds")? Different speeds for different directions/actuators? What `task_period_ms`
@@ -207,9 +219,9 @@ public:
 };
 ```
 
-Unlike the C shape, nothing here goes through `CppModel_getInput*`/`setOutput*` - the simulation
-file just instantiates this class as a member and reads/writes its public fields directly each
-step (see `cppmodel:simulation-testing`).
+As with the C shape, nothing in the model goes through `CppModel_getInput*`/`setOutput*` - the
+simulation file instantiates this class as a member and copies its public fields to and from the
+controller's struct each step (see `cppmodel:simulation-testing`).
 
 **Unbounded, indexed/rotating mechanism** (e.g. a feed wheel, a conveyor with repeating slots):
 

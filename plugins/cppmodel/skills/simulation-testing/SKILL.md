@@ -30,25 +30,65 @@ simulation does. Reading its outcome goes through the `cppmodel` MCP server (see
 `cppmodel:simulations`); if its tools are unavailable or unauthenticated, tell the user to
 authenticate it with `/mcp` and stop, for the same reason.
 
-## Which side is being simulated
+## Which side is being simulated: whose inputs they are
 
-A CppModel simulation always wraps exactly one component - the plant (the physical mechanism) or
-the controller - as the thing exposed to CppModel; the other component still exists as real code in
-the same binary, wired to the wrapped one directly in-code, not through the input/output boundary
-(`CppModel_getInput*`/`setOutput*` in C, `inputs["..."]`/`outputs["..."]` in C++). Only the wrapped
-component's boundary crosses that line, so what counts as an "input" vs an "output" flips depending
-on which side that is:
+A simulation's inputs (`CppModel_getInput*` in C, `inputs["..."]`/`GetSafe` in C++) are always the
+inputs of one component, named as that component sees them. Which component that is depends on
+what the simulation runs:
 
-- **Simulating the plant** (the common case - see `cppmodel:plant-model`): inputs pull in the
-  controller's actuator commands to drive the model, outputs publish the sensor readings the model
-  produces back to the real controller.
-- **Simulating the controller** (e.g. a decoupled component from `cppmodel:decouple-component`
-  exercised on its own): inputs pull in the sensor readings that feed the real controller logic,
-  outputs publish the actuator commands it produces.
+- **The plant alone** (open loop, no controller in the binary; e.g. checking a new model from
+  `cppmodel:plant-model` by itself): inputs are the **plant's** inputs - the actuator commands
+  (`actuators` struct) plus any environment the plant takes (load, ambient). Outputs are its
+  sensor readings and internal state.
+- **The controller, or the complete system** (controller and plant together): inputs are the
+  **controller's** inputs - its `inputs`/`in_signals` struct: sensor signals, operator commands,
+  setpoints, signals from other units - under the controller's own names. The plant is there as
+  feedback, not as the thing being driven by the document. Each cycle the controller's outputs
+  drive the plant's actuators directly in code, and the plant **generates or modifies** the
+  controller's inputs:
+  - **generated**: an input the plant models (a limit switch, a position counter, a pressure). The
+    plant's value goes into the controller's input; don't also read it with `getInput`, so the
+    record doesn't show a value the controller never saw. Publish it as an output instead.
+  - **modified**: read from the document under the controller's name, then changed by the plant
+    before the controller sees it. E.g. a posted pressure the plant adds its load pressure to, or
+    an operator command the mechanism physically blocks at an end-stop.
+  - **passed through**: an input the plant has nothing to do with (an operator button, a setpoint,
+    a mode switch) goes from the document to the controller unchanged.
 
-Even when both a plant model and a controller exist in the same project, pick which one is under
-test before writing the per-cycle callback - that decision decides which struct (actuators or
-sensors) gets read as input and which gets published as output. Don't straddle both.
+  Plant actuators are never inputs here: they come from the controller. Outputs are the
+  controller's outputs (the actuator commands), the controller inputs as they reached it after
+  the plant, and any plant state worth seeing. Without a plant model, every controller input comes
+  straight from the document.
+
+Pick the case before writing the per-cycle callback; it decides the input names. Don't mix them:
+a closed-loop simulation never takes plant actuator commands as inputs, and a plant-alone one
+never takes controller inputs. One cycle of a closed-loop simulation, in C:
+
+```c
+CMODEL_CYCLIC()
+{
+    /* plant feedback from the previous cycle's commands */
+    plant.actuators.motor_up = ctrl.outputs.motor_up;
+    plant.actuators.motor_down = ctrl.outputs.motor_down;
+    plantModelCyclic(&plant, currentTime_ms);
+
+    /* controller inputs: passed through, generated, modified */
+    ctrl.inputs.start_button = CppModel_getInputU8(self, "Start Button", 0);
+    ctrl.inputs.upper_limit = plant.sensors.upper_limit;
+    ctrl.inputs.pressure_bar = CppModel_getInputF64(self, "Pressure [bar]", 0.0) + plant.load_pressure_bar;
+
+    controller(&ctrl);
+
+    CppModel_setOutputU8(self, "Motor Up", ctrl.outputs.motor_up);
+    CppModel_setOutputU8(self, "Motor Down", ctrl.outputs.motor_down);
+    CppModel_setOutputU8(self, "Upper Limit", ctrl.inputs.upper_limit);
+    CppModel_setOutputF64(self, "Pressure Seen [bar]", ctrl.inputs.pressure_bar);
+    /* ... step schedule, CppModel.StepResult ... */
+}
+```
+
+The C++ shape is the same: the plant is a member, its fields are copied to and from the
+controller's struct in `RunCyclic`, and only the controller's inputs are read from `inputs`.
 
 ## Language: C or C++
 
@@ -60,7 +100,8 @@ debugging an existing one, whose language is already fixed by its file extension
 
 Every CppModel simulation, in either language, does the same three things per cycle: runs one
 callback per simulated `task_period_ms`/step, crosses the simulation boundary (read simulated
-inputs, run one cycle of the code under test, publish outputs), and reports pass/fail for that
+inputs, run one cycle of the code under test with the plant as feedback when the controller is in
+the loop, publish outputs), and reports pass/fail for that
 cycle via a `CppModel.StepResult` signal (1 = pass, 0 = fail - any single cycle returning 0 fails
 the whole run, there's no "mostly passing"). How that's actually wired up is project-specific and
 you must check what already exists before picking one - don't assume either shape below is what

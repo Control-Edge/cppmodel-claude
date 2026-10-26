@@ -157,8 +157,9 @@ environment of its one command only, as `cppmodel:simulation-testing`'s "Build a
 
 1. **Build the planned simulation** under `experiments/<plan-id>/`, named `planned-<plan-id>`, as
    `cppmodel:simulation-testing` describes (`cppmodel:language` for a new file). It wires the
-   existing plant model and controller exactly as the production simulation does, but reads the
-   operator's side of a manoeuvre (commands, setpoints) as **inputs** and the run conditions
+   existing plant model and controller exactly as the production simulation does, with the plant
+   as feedback, but reads the operator's side of a manoeuvre (commands, setpoints) as
+   **inputs**, under the controller's input names, and the run conditions
    (load, outreach) as **parameters**, so one binary serves every run and every later revision of
    the plan without a rebuild. It publishes as outputs every channel the field will log, under the
    names the plan maps to the log channels.

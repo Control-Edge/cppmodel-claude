@@ -233,9 +233,11 @@ For "why did it fail", read those parameters before fetching any series. Require
 (`VerifyRequirement`) are not in the execution record. They are only printed and written to a
 local `cppmodel-requirements.json` (see `cppmodel:verification`, step 6).
 
-Whether a signal is in `inputs` (a `CppModel_getInput*`) or in `results` (a
-`CppModel_setOutput*`) tells you it's crossing into or out of whichever component that
-simulation wraps - not necessarily "actuator" or "sensor" specifically. See
-`cppmodel:simulation-testing`'s "which side is being simulated" note: for a plant simulation,
-inputs are actuator commands and outputs are sensor readings; for a controller simulation, inputs
-are sensor readings and outputs are actuator commands.
+Whose inputs the `inputs` are depends on what the simulation runs (see
+`cppmodel:simulation-testing`'s "which side is being simulated" note). For a plant-alone
+simulation they are the plant's inputs (actuator commands) and outputs are its sensor readings.
+For a controller or complete-system simulation they are the controller's inputs (operator
+commands, setpoints, the sensor signals the plant doesn't generate), and outputs are its actuator
+commands plus the plant-generated signals it read. There, an input the plant modifies is recorded
+as posted, before the plant changed it: compare with its published output to see what the
+controller actually got.

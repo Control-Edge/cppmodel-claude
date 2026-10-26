@@ -71,7 +71,9 @@ Agree on:
   requirement, and include the current value so one run reproduces today's behaviour. For inputs,
   define named variants of a whole series (`"slow"`, `"fast"`, `"stop-and-go"`...), authored per
   `cppmodel:simulation-inputs` step 3. A varied input replaces the whole series with that label,
-  not individual points.
+  not individual points. In a controller or complete-system simulation the variants are
+  controller inputs (operator command profiles, setpoint steps), never plant actuator commands:
+  the plant is feedback and reacts to whatever the controller does.
 - **Shape.**
   - **Grid**: every combination of the listed parameter values and input variants.
   - **Runs**: an explicit list, for one-at-a-time sensitivity, hand-picked corner cases, or one run

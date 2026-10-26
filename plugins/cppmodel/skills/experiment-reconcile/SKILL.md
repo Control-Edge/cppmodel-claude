@@ -122,8 +122,9 @@ Two predictions matter, and the page shows both:
 - **As-run prediction**: the same model driven with what the operator actually did. This
   separates model error from operator deviation, so it's the one that decides whether the model is
   right. Produce it with the planned simulation:
-  - take the operator-side channels (the commands/setpoints the plan's `simulation.inputs` hold)
-    from the log segment, convert them to `set_inputs` format (`x` in ms from the segment start,
+  - take the operator-side channels (the controller inputs the plan's `simulation.inputs` hold:
+    commands, setpoints) from the log segment, never the logged actuator commands or sensor
+    readings, which the closed loop produces itself; convert them to `set_inputs` format (`x` in ms from the segment start,
     staircase at the simulation step or coarser), and set the achieved run conditions as
     parameters;
   - run one execution per attempt with `cppmodel:parameter-sweep`, using an explicit `runs` list,

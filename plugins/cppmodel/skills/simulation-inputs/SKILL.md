@@ -90,8 +90,23 @@ Each name goes where the code reads it: `getInput` names under `inputs`, `getPar
 under `parameters`. Posting a name in the wrong section is the same as not posting it. Keys
 starting with `CppModel.` are reserved (see step 3).
 
-Show the user the table (name, input or parameter, type, current or fallback value) before
-authoring anything.
+Then settle whose inputs they are (`cppmodel:simulation-testing`'s "which side is being
+simulated"):
+
+- **Plant alone** (no controller in the binary): the inputs are the plant's, its actuator commands
+  and environment. Author them from the plant's point of view.
+- **Controller or complete system**: the inputs are the controller's, under its own names. The
+  plant is feedback: it generates some controller inputs and modifies others from the controller's
+  outputs. Author the document as what reaches the controller from outside (operator commands,
+  setpoints, other units' signals), and for a modified input, the value before the plant changes
+  it. Never write a plant actuator command into it: the controller produces those. A
+  plant-generated input can't be set from the document. If the user wants to force one (a stuck
+  sensor, a fault), say so; it needs a fault input or parameter in the simulation
+  (`cppmodel:simulation-testing`).
+
+For each input, note in the table whether it passes through to the controller or the plant
+modifies it. Show the user the table (name, input or parameter, type, current or fallback value)
+before authoring anything.
 
 ## 2. Check nothing is already pending
 
@@ -117,6 +132,11 @@ Inputs:
   - A ramp has to be written as a staircase of points. Going finer than the simulation step size
     gains nothing, because the binary only reads at step boundaries.
 - **Integral types get whole numbers within the type's range.** Booleans are `0`/`1`.
+- **Write the scenario from the perspective step 1 settled.** In a closed-loop simulation a
+  scenario is what the operator or the surrounding system does to the controller ("press start at
+  1 s, raise the setpoint at 5 s"), not what the actuators do; the plant produces the rest. A
+  request phrased as plant behaviour ("the motor runs up for 2 s") is translated into the
+  controller inputs that cause it, or, if none do, raised with the user.
 
 Parameters:
 
