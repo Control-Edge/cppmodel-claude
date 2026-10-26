@@ -240,9 +240,9 @@ input document and a `ctest` test that passes it with `--inputs`, with no new C/
 that needs different logic or flow is another simulation with its own test
 (`cppmodel:simulation-testing`, "New case: input document or new simulation"). Both need nothing
 but the library and `ctest` (SDK 0.10.0+). The documents have the shape `set_inputs` takes
-(`{inputs, parameters}`). Scenarios and sweeps are set up differently:
+(`{inputs, parameters}`). Input profiles and sweeps are set up differently:
 
-**Scenarios (only when the user asks for them)**: inputs are time series, so several scenarios
+**Input profiles (only when the user asks for them)**: inputs are time series, so several cases
 can be chained along the time axis of one document (nominal, then heavy demand, then stop-and-go,
 each starting after the system has returned to a known state) and run as one test. That is the
 point of a simulation: one run is a snapshot of the whole sequence for that behaviour, and its
@@ -251,8 +251,8 @@ over many tests that each show part of it. Split them into separate documents on
 need different parameters, or where one is meant to fail as a whole (`WILL_FAIL`):
 
 ```cmake
-add_test(NAME VelocityProfile-scenarios
-         COMMAND VelocityProfile --inputs ${CMAKE_CURRENT_SOURCE_DIR}/scenarios/velocity-profiles.json)
+add_test(NAME VelocityProfile-profiles
+         COMMAND VelocityProfile --inputs ${CMAKE_CURRENT_SOURCE_DIR}/inputs/velocity-profiles.json)
 ```
 
 **Sweeps (only when the user asks for them)**: parameters are constants for a whole run, so every
@@ -269,7 +269,7 @@ set_tests_properties(VelocityProfile-accel-6 PROPERTIES WILL_FAIL TRUE)
 
 For both:
 
-- **Writing the documents.** Write them with `cppmodel:simulation-inputs` (scenarios) or
+- **Writing the documents.** Write them with `cppmodel:simulation-inputs` (input profiles) or
   `cppmodel:parameter-sweep` (one document per point). Both check the names against what the
   simulation reads before anything is committed. A misspelled name silently runs with the code's
   fallback.

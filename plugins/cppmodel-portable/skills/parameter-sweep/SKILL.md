@@ -106,7 +106,7 @@ Agree on:
   `parameters` (`get_latest_result`), with only the varied names changed. `set_inputs` needs a
   complete document, since a name left out uses its fallback. If that record consumed a posted
   document (step 2 shows its values differ from the fallbacks), the base carries those values. Say
-  so, and offer a committed scenario file as the base instead. In a closed-loop simulation, drop
+  so, and offer a committed input document as the base instead. In a closed-loop simulation, drop
   the plant-fed inputs from the base (`cppmodel:simulation-inputs` step 3): posting the recorded
   plant trace back would override the plant in every run.
 - **What to measure.** Pass/fail is always recorded (exit code, `CppModel.StepResult`). Ask what
@@ -247,10 +247,10 @@ Point the user at the web UI for any run they want to inspect:
 ## 8. Follow-ups worth offering
 
 - **A failing combination should become a permanent test**, so it's covered without a sweep.
-  The point is inputs and parameters only, so commit its run document as a scenario file with its
+  The point is inputs and parameters only, so commit its run document as an input document with its
   own `ctest` test (`cppmodel:simulation-inputs`, "In CI" below); no new C/C++ file. Only if
   covering it needs different logic or flow is it another simulation (`cppmodel:simulation-testing`,
-  "New case: input document or new simulation"). Posted documents are one-shot, so a scenario
+  "New case: input document or new simulation"). Posted documents are one-shot, so a document
   that isn't in the repo isn't part of the test suite.
 - **To find out why a combination fails**, fetch its execution with `get_binary_runs` (`start` =
   its index, `count: 1`). Then follow `cppmodel:simulation-testing`'s "Debugging a failure"

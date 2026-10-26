@@ -146,7 +146,7 @@ silently. For each rule, show one run where it fails, at the step where it shoul
 - Check from each run's `CppModel.Verify.<name>` parameter that the expected rules failed, with
   the expected `violations` intervals, and that the others still passed.
 - Keep the negative cases as `ctest` tests marked `WILL_FAIL`
-  (`cppmodel:ci-pipeline`'s "Scenarios" and "Sweeps"), so a rule that stops being able to fail is
+  (`cppmodel:ci-pipeline`'s "Input profiles" and "Sweeps"), so a rule that stops being able to fail is
   noticed.
 
 ## 5. Run, and read the outcomes from the recorded execution

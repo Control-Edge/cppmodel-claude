@@ -156,7 +156,7 @@ Inputs:
   - A ramp has to be written as a staircase of points. Going finer than the simulation step size
     gains nothing, because the binary only reads at step boundaries.
 - **Integral types get whole numbers within the type's range.** Booleans are `0`/`1`.
-- **Several scenarios can share one document.** Inputs are time series, so scenarios can be
+- **Several cases can share one document.** Inputs are time series, so cases can be
   chained along the time axis (nominal, then a load step, then stop-and-go), each starting once
   the system is back in a known state, and one run covers them all. That's the benefit, not a
   compromise: the one trace shows every failure across the sequence, so the user explores them
@@ -198,11 +198,12 @@ Save the document as a file:
 
 - a one-off experiment goes in the scratch area;
 - a value variant worth repeating goes in the project, e.g.
-  `simulations/scenarios/<simulation>/<scenario>.json` (match an existing convention).
+  `simulations/inputs/<simulation>/<case>.json` (match an existing convention).
 
-Ask the user which. A scenario worth keeping that turned out to be more than values (it needed a
+Ask the user which. A case worth keeping that turned out to be more than values (it needed a
 particular order of events or its own check) belongs in code: offer a new simulation or step
-instead of the file.
+instead of the file. With SDK 0.13.0+ the document itself can be one step of such a simulation
+(an inputs step, `cppmodel:simulation-testing`), so it isn't rewritten as code.
 
 ## 4. Run with the document
 

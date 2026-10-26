@@ -107,8 +107,8 @@ Before writing any code for a new case, decide which of the two it is:
   constants for what an existing simulation already does (a setpoint profile, another load, a
   tuned gain, an operator profile from a field log, a sweep). **Don't write another C/C++ file**
   and don't edit the simulation. Run the existing one with an input document (`--inputs`,
-  `cppmodel:simulation-inputs`, or `cppmodel:parameter-sweep` for many), committed as a scenario
-  file with its own `ctest` test if it should stay.
+  `cppmodel:simulation-inputs`, or `cppmodel:parameter-sweep` for many), committed as an input
+  document with its own `ctest` test if it should stay.
 - **It needs different logic or flow**: anything inputs and parameters can't express, such as
   stimuli that react to the system's state ("press stop once the lift is half way"), a different
   sequence of steps, injected faults, a different controller or plant variant, or checks of its
@@ -160,6 +160,9 @@ a mode sequence, no oscillation), use rules and `VerifyRequirement` through
 
 ### C++
 
+From SDK 0.13.0, the library schedules steps itself (its `documentation/Steps.md`):
+`cppmodel::Scenario` and `RunScenario` here, `CMODEL_STEP`/`CppModel_runScenario` in C (below).
+
 Check first whether this project has its own base class layered on top of
 `cppmodel::Simulation` (or, in code written before SDK 0.8, `CppModelBase::Simulation` from
 `cppmodel/Simulation.h` - the same class under its old names) - e.g. a project-specific wrapper might add a
@@ -199,7 +202,8 @@ C simulations `#include <CModel.h>`. Check first whether the project has its own
 (often `ModelHelpers.h`) with an `InternalStep_ts` step-schedule array run through
 `RunInternalSteps`, or its own versions of the `CMODEL_*` macros. Grep for `CMODEL_SIMULATE`,
 `InternalStep_ts` and `ModelHelpers.h` first - if present, use them exactly as existing C
-simulations in the project do.
+simulations in the project do. Don't migrate such a project to the SDK's steps unasked; offer it
+only when the user wants to.
 
 Otherwise use `CModel.h` itself. Its macros are the shortest form: `CMODEL_CYCLIC() { ... }`
 defines the per-cycle callback (`void RunCyclic(CModelSimulation_ts *self, unsigned long
@@ -218,8 +222,8 @@ value, then `CppModel_destroy(sim)`. Either way, cross the boundary with
 ### Either way
 
 The simulation still needs a step schedule chaining the steps of its behaviour in one file, using
-whatever mechanism the chosen path above provides (a `steps` map/vector, or `InternalStep_ts` +
-`RunInternalSteps`). Keep the steps to that one behaviour; an unrelated behaviour gets its own
+whatever mechanism the chosen path above provides (a project's own `steps` map/vector or
+`InternalStep_ts` + `RunInternalSteps`, else the SDK's steps from 0.13.0, below). Keep the steps to that one behaviour; an unrelated behaviour gets its own
 simulation ("New case: input document or new simulation" above). Give each distinct scenario a fresh `Init`-style reset function beforehand,
 unless deliberately continuing from the previous scenario's end state (also a valid, commonly used
 pattern - e.g. confirming a signal set in one step has the expected effect at the very start of
@@ -230,6 +234,39 @@ Assertion style: prefer "eventually true, with a grace window" over exact cycle-
 timers, multi-state sequences) is easy to get wrong by hand - don't guess tight thresholds, derive
 them from the actual physics/logic involved, then validate against a real trace (below) before
 trusting them.
+
+### The SDK's steps (SDK 0.13.0+)
+
+Without a project mechanism, use the library's. Three words, one meaning each: an **input
+document** is the JSON (`{"inputs": [...]}`), a **step** runs for a duration, and a **scenario**
+is an ordered list of steps.
+
+- **Step:** a function run every cycle for its duration. It gets the time since its step started
+  (0 at its first cycle) and returns whether the cycle passed. C: `CMODEL_STEP(Fn, ms)`; C++:
+  `{&Sim::Fn, this, ms}` or `{lambda, ms}`. No function (`NULL`/`nullptr`) only waits.
+- **Nested scenario:** a short sequence that brings the system to a state ("start the motor"),
+  written once and chained wherever a test needs that state. C: `CMODEL_STEP_SCENARIO(start)`;
+  C++: the `Scenario` itself. Declare it before the scenario that uses it.
+- **Inputs step:** an input document whose inputs are read during the step (`x` counts from the
+  step's start), with an optional function checking each cycle. Use it for stimuli that are data,
+  such as a field log or a profile, inside an ordered test. C: `CMODEL_STEP_INPUTS(path, CheckFn,
+  0)`; C++: `cppmodel::Scenario::Inputs(path, &Sim::Check, this)`. Duration 0 is the document's
+  length. Inputs passed with `--inputs` or posted still win, and the document's parameters are
+  ignored. Pass the folder from CMake (`target_compile_definitions(... SIMULATIONS_DIR=...)`)
+  rather than relying on the working directory.
+- **Running it:** in the step function, call `CppModel_runScenario(self, &test, currentTime_ms)` /
+  `RunScenario(test, simulationTime_ms)` **before reading inputs** (it loads the inputs steps'
+  documents at time 0), and set `CppModel.StepResult` from its result. Create the simulation with
+  the scenario's length: `CppModel_scenarioDuration(&test, stepMs)` / `test.Duration(stepSize_ms)`.
+- **Timing:** each step lasts its duration rounded up to whole cycles, at least one; the last
+  step continues to the end of the run. The step is found from the time, so a scenario needs no
+  reset and can be reused anywhere.
+- **Step numbers:** running a scenario records the running step's number, counted from 1 across
+  the flattened schedule, as `CppModel.Step` and `CppModel.StepNumber`. A failed run's result and
+  exit code are the first failing step's number.
+
+The SDK's `simulations/MotorStarterC.c` and `MotorStarterCpp.cpp` are complete examples of all
+three step kinds.
 
 ## Build and run
 
@@ -316,12 +353,13 @@ there is no local log, file, or cache holding the per-cycle signal trace. It onl
 Workspace API, or, for a local run (SDK 0.10.0+), in the file its `--results` names. Use the `cppmodel` MCP server's `get_latest_result` (see `cppmodel:simulations`)
 to pull the full execution trace: every `CppModel_getInput` signal under `inputs`, every
 `CppModel_getParameter` under `parameters`, and every `CppModel_setOutput` signal (including
-`CppModel.StepResult` and `internalStepNumber`) under `results`, each series as `{label, x, y}`
+`CppModel.StepResult` and the step number) under `results`, each series as `{label, x, y}`
 with `x` in ms. Series only have points where the value changed, plus the end time. Don't grep the project for prior output, don't add
 extra logging/printf/file-dumping to the simulation to work around this, and don't write a new
 script to reconstruct the trace - the tool already returns it. For a long run, call it with
-`summary: true` first, then with `signals: [...]` for `CppModel.StepResult`,
-`internalStepNumber`, and the signals around the failure.
+`summary: true` first, then with `signals: [...]` for `CppModel.StepResult`, the step number
+(`CppModel.StepNumber`/`CppModel.Step` with the SDK's steps, or the project's own, e.g.
+`internalStepNumber`), and the signals around the failure.
 
 Workflow:
 
@@ -332,8 +370,9 @@ Workflow:
    the parameters instead: each failed rule's `CppModel.Verify.<name>` gives its `explanation` and
    all its `violations` (time intervals in seconds), and its output series of the same name drops
    to 0 where it first failed. See `cppmodel:verification`.
-2. For each failure, cross-reference `internalStepNumber`'s transitions to identify which step
-   function was running at that timestamp, and the local time within that step (absolute time minus the step's start
+2. For each failure, cross-reference the step number's transitions to identify which step
+   was running at that timestamp (with the SDK's steps, the run's exit code is already the first
+   failing step's number), and the local time within that step (absolute time minus the step's start
    time).
 3. Look at the other signals' values at that same timestamp to see what state the model/controller
    was actually in - usually enough to tell whether the assertion's logic is wrong, its timing is
