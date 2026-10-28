@@ -1,6 +1,6 @@
 ---
 name: cppmodel:simulations
-description: Query CppModel Workspace API results - list simulations, fetch the latest results for one, list its execution history, see what changed between two executions (code, parameters, signals), or compare executions with each other, with links into the workspace web UI. Every simulation run is submitted to the workspace, and its execution history is how runs are compared. Use when asked about CppModel simulation results, executions, how a run compares with an earlier one or what changed since it, or the Workspace API, in a project that uses the CppModel libraries.
+description: Query CppModel Workspace API results - list simulations (by name, or sorted by latest run or execution count), fetch the latest results for one, list its execution history, see what changed between two executions (code, parameters, signals), or compare executions with each other, with links into the workspace web UI. Exports chosen signals of one execution as a chart image to look at, or as a CSV, with a link for the user. Every simulation run is submitted to the workspace, and its execution history is how runs are compared. Use when asked about CppModel simulation results, executions, how a run compares with an earlier one or what changed since it, the Workspace API, "show me / plot / chart the signals", "look at the trace", "what did I run last", or a pasted `/snapshots/` link, in a project that uses the CppModel libraries.
 ---
 
 ## The tools: the `cppmodel` MCP server
@@ -25,11 +25,13 @@ an ad-hoc program instead, and never search the project for result files in thei
 
 | Tool | Use |
 |------|-----|
-| `list_simulations` | list simulations with execution counts (`scope: "team"` for the whole team) |
+| `list_simulations` | list simulations with execution counts and `lastExecutionAt` (`scope: "team"` for the whole team; `sort` by `name`, `executions` or `lastExecution`; `order`) |
 | `get_latest_result` | the latest execution: inputs, parameters, results |
 | `list_executions` | execution history, newest first, with id, time, status (up to 1000 per page) |
 | `get_execution` | one past execution by id, same shape as `get_latest_result` |
 | `what_changed` | what differs between two executions: code, parameters, signal names (see "Comparing runs") |
+| `export_signals` | a chart (PNG, returned as an image), CSV or JSON of up to 8 signals of one execution, with a `/snapshots/<id>` link for the user (see "Looking at signals") |
+| `get_export` | an export again, by id or `/snapshots/<id>` link, in any format |
 | `get_binary_runs` | the runs of one build, by run index, each with `passed` (see "Runs of one build") |
 | `get_pending_inputs` | the document waiting for this account's next execution (usually none) |
 | `set_inputs` | post this account's next execution's inputs/parameters (see below) |
@@ -51,8 +53,9 @@ Execution ids are keys from `list_executions`, not positions: the first executio
 Results carry `uiUrl`, a link into the workspace web UI, which plots the signals: each simulation in
 `list_simulations`, each execution in `list_executions`, the execution `get_execution` read (plus
 `whatChangedUiUrl`, its comparison with the run before it), a `what_changed` comparison, and a
-`submit_execution`. `get_latest_result` and `get_binary_runs` link the simulation's page, which
-shows its latest execution. Whenever you tell the user about a simulation, a run or a comparison,
+`submit_execution`, and an `export_signals`/`get_export` export (its snapshot page, which expires
+after 7 days; see "Looking at signals"). `get_latest_result` and `get_binary_runs` link the
+simulation's page, which shows its latest execution. Whenever you tell the user about a simulation, a run or a comparison,
 give them the matching link so they can look at it themselves.
 
 `set_inputs` posts a document the account's next execution of that simulation consumes; other
@@ -121,6 +124,59 @@ disappeared, so you fetch only the series that matter. If the server has no `wha
 both executions with `get_execution` (`summary: true`) and compare their parameters and signal
 names yourself.
 
+## Looking at signals: `export_signals`
+
+`export_signals` (`simulation`, `format`, optional `execution_id`, default the latest) makes an
+export of up to 8 signals of one execution, plus chosen parameters, and returns it in `format`:
+
+- `png`: the chart as an image you can look at: steps on one time axis in seconds, a legend that
+  notes scales and offsets, and the parameters as a caption. Use it to look for relationships
+  between signals (cause and effect, the lag between a command and its response, interlocks) or
+  for features of a signal's shape: overshoot, oscillation, settling, delays, steps, saturation,
+  chattering.
+- `csv`: a `time_ms` column (the union of every signal's x) and one column per signal, empty
+  outside that signal's own time span. Use it when only the values matter, such as comparing
+  signals at given times or computing a metric. Above 256 KiB it is cut at a row boundary and
+  `csvTruncated` says so; narrow the export.
+- `json`: the series `{label, source, scale, xOffset, yOffset, x, y}` with the range and transforms
+  applied, change-compressed, plus `parameters`. For the raw series, `get_execution` with `signals`
+  works as well.
+- `none`: only the link.
+
+```
+export_signals {simulation: "CPidSystemSim", format: "png",
+  signals: ["Setpoint", "PlantOutput", "ToleranceMax", "ToleranceMin",
+            {label: "Settled", scale: 0.5}],
+  parameters: ["Kp", "Ki", "Kd"], from: 0, to: 6000}
+```
+
+- **Check names first.** Take the labels from `summary: true`. Names are exact, and an unknown one
+  is rejected (`HTTP 400 VALIDATION_ERROR`), never ignored. A signal is a label or `{label,
+  source?, scale?, yOffset?, xOffset?}`. `source` (`inputs`/`results`) is needed only when a label
+  is both an input and an output. The same label may appear more than once.
+- **Narrow it to what matters.** `from`/`to` (ms of simulation time, applied before `xOffset`)
+  around the moment of interest, such as a failure or a step change, and only the signals that
+  explain it. That keeps the chart readable and the CSV small. Verification `violations` are in
+  seconds; multiply by 1000 for `from`/`to`.
+- **Put signals on one axis.** The plotted value is `y * scale + yOffset`: a 0/1 flag scaled to 0.5
+  sits readably next to a signal near 1. `xOffset` (ms) lines a response up with its command.
+  `width`/`height` set the PNG size (200–3000 px, default 1000 × 600).
+- **Give the user the export's `uiUrl`, every time** (`<uiUrl>/snapshots/<id>`), so they see the
+  same chart you looked at. The page also offers PNG and CSV downloads. `executionUiUrl` is the
+  execution's page.
+- **Exports are temporary.** They last 7 days (`expiresAt`), and stop working earlier if the
+  execution is deleted. Never put a snapshot link in anything meant to last: documentation, a
+  requirements-coverage file, a plan, a commit message. Link the execution's `uiUrl` there.
+- **One export covers one execution.** To compare two runs, give `what_changed`'s `uiUrl`, which
+  overlays both, or make one export per run. Only an overlay across many runs, such as a sweep's
+  key signal over all runs, needs a chart of your own (`dataviz`).
+- **Don't fetch export links with curl or a script.** They need the user's login; the tools return
+  the PNG and CSV themselves.
+- **Open a pasted link with `get_export`.** When the user pastes a `/snapshots/<id>` link, read it
+  with `get_export` (`export`: the id or the link, `format`: `png`, `csv` or `json`), usually as
+  `png` first. An expired or unknown export gives `HTTP 404 NOT_FOUND`; fall back to the
+  execution, if the user knows which.
+
 ## The workspace is part of the loop
 
 Every simulation run is submitted to the workspace, and its execution history is the record of the
@@ -148,7 +204,10 @@ by id later. So:
   collect data an execution already recorded.
 - **Look before running.** If the question is "what did the simulation do when...", check the
   history first. Run again only when no execution covers it (different code, inputs, or
-  parameters).
+  parameters). For "what did I run last" or "the simulation I was working on", call
+  `list_simulations` with `sort: "lastExecution"` (newest first) instead of paging through every
+  name. `lastExecutionAt` is UTC, and `null` for a simulation whose latest execution was stored
+  before the server recorded the time.
 - **Keep simulation names stable.** The history is per name. A renamed simulation starts with an
   empty history and can't be compared with the old one by id, so rename only on purpose and say
   that this is the consequence.
@@ -206,8 +265,8 @@ free accounts share `free-workspace.cppmodel.com` (results are still per user). 
 picks the workspace from the login; `get_workspace` says which one, with its `uiUrl`. Prefer the
 `uiUrl` links the tools return. To build one yourself (name and ids URL-encoded):
 `<uiUrl>/results/<name>` (a simulation's latest execution), `<uiUrl>/results/<name>/executions/<id>`
-(one execution), `<uiUrl>/what-changed/<name>?current=<id>&previous=<id>` (two compared) and
-`<uiUrl>/team-simulations`. Don't assume a `w<number>` workspace when explaining a URL.
+(one execution), `<uiUrl>/what-changed/<name>?current=<id>&previous=<id>` (two compared),
+`<uiUrl>/snapshots/<id>` (a signal export, for 7 days) and `<uiUrl>/team-simulations`. Don't assume a `w<number>` workspace when explaining a URL.
 
 ## Running simulations still needs `.env`
 

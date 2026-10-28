@@ -14,7 +14,10 @@ A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
   (`mcp.cppmodel.com`): list your simulations, fetch a simulation's latest results, list its
   execution history, fetch one past execution, see what changed between two executions (code,
   parameters, signals), or fetch all the runs of one build (e.g. a whole sweep) by its
-  `CppModel.BinaryFingerprint`. Results come with links into the workspace web UI.
+  `CppModel.BinaryFingerprint`. Lists can be sorted by latest run or execution count, to find
+  recent work. Chosen signals of one execution can be exported as a chart the agent looks at, or
+  as a CSV, with a snapshot link (valid for 7 days) so you see the same chart. Results come with
+  links into the workspace web UI.
 - **`cppmodel:simulation-inputs`** - run a simulation with specific inputs (time series) and
   parameters (constants) without editing or rebuilding it. Finds the exact names the simulation
   reads, validates the document, and passes it to the binary with `--inputs` (SDK 0.10.0+; older

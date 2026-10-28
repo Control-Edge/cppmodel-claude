@@ -132,6 +132,10 @@ Two predictions matter, and the page shows both:
   - if the operator-side channels weren't logged, there is no as-run prediction. Compare against
     the planned prediction only, and mark those runs' verdicts as weaker for it.
 
+A `csv` export of the as-run prediction's channels (`export_signals`, see `cppmodel:simulations`'
+"Looking at signals") gives them on one time grid, ready for resampling. It's an option for
+reading the values, not a replacement for the reconciliation page.
+
 **Align in time** on the first command change in the segment (sim time 0 is the start of the run),
 and say how you aligned. Resample both onto the channel's logged rate with hold-last-value before
 comparing.

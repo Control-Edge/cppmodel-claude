@@ -281,7 +281,9 @@ Once the values are confirmed, report:
 
 - pass/fail: whether `CppModel.StepResult` in `results` ever dropped to 0. The exit code is 0
   for a pass and nonzero for a fail (255 on Linux/macOS, -1 on Windows).
-- what the scenario showed in the outputs the user cares about
+- what the scenario showed in the outputs the user cares about; optionally a `png` export of
+  those outputs (`export_signals`, see `cppmodel:simulations`' "Looking at signals") with its
+  link. The link expires after 7 days, so the execution id and `uiUrl` stay the durable reference
 - the execution id (from `list_executions`) or the run's fingerprint and index, so this run can
   be found and compared later, and its `uiUrl`
 

@@ -223,14 +223,17 @@ Each run in `get_binary_runs` has its `index`, `passed` (every cycle's `CppModel
 - **Refine where it matters.** If the boundary falls between two values, offer a second, finer
   sweep between them rather than guessing where it is. With verification rules, the margins on
   both sides show roughly where to aim it. Still confirm the boundary with runs.
-- For a visual comparison, offer to plot the key signal across runs. Load the `dataviz` skill
-  before drawing any chart.
+- For a visual comparison, offer to plot the key signal across runs. An export covers one
+  execution only, so a cross-run overlay needs a chart of your own: load the `dataviz` skill
+  before drawing it.
 
 Point the user at the web UI for any run they want to inspect: `get_binary_runs` gives the
 simulation's page as `uiUrl`, so name the run's fingerprint and index with it. For a link to one
 run, find its id with `list_executions`, whose items each have their own `uiUrl`. To show how two
 runs differ, `what_changed` with their ids gives the parameters that differ and a `uiUrl` that
-overlays both.
+overlays both. For one run the user wants to see, such as the run at the boundary, export it as a
+`png` (`export_signals` with that run's execution id, see `cppmodel:simulations`' "Looking at
+signals"), look at it, and give its link.
 
 ## 8. Follow-ups worth offering
 

@@ -379,7 +379,12 @@ Workflow:
    time).
 3. Look at the other signals' values at that same timestamp to see what state the model/controller
    was actually in - usually enough to tell whether the assertion's logic is wrong, its timing is
-   wrong, or the code under test has a real bug. Group failures with one cause: a later one can
+   wrong, or the code under test has a real bug. Besides reading values, export a `png` of the
+   failing step's signals over a window around the failure (`export_signals` with `from`/`to` in
+   ms, see `cppmodel:simulations`' "Looking at signals") and look at it: the lag between a command
+   and its response, an interlock or an overshoot shows at once. Give the user the export's
+   `uiUrl`. An export isn't extra logging or a script: it reads what the execution already
+   recorded. Group failures with one cause: a later one can
    be the aftermath of an earlier one when the system didn't get back to a known state in between.
    A fix to controller code (code that ships to the
    target) follows `cppmodel:coding-standard`.
@@ -394,7 +399,8 @@ Workflow:
 5. Compare the new execution with the failing one through the history: `what_changed` with both
    ids (from `list_executions`) for the code, parameters and signal names, then `get_execution`
    for both with the same `signals`, so the fix is shown to change what it was meant to change and
-   nothing else. Give the user the comparison's `uiUrl`, which overlays both runs. Don't add a temporary test or extra outputs to collect
+   nothing else. Give the user the comparison's `uiUrl`, which overlays both runs. A `png` export of
+   the same signals and window from the new execution shows the fix; give its link as well. Don't add a temporary test or extra outputs to collect
    what the two executions already recorded.
 
 If the trace's `inputs`/`parameters` show values other than the source's fallbacks (for a

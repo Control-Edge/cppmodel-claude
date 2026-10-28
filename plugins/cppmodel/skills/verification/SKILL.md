@@ -167,6 +167,11 @@ covered requirement IDs. Report from the recorded execution, through the `cppmod
 - **Flag thin margins** on passing rules, e.g. a response with 0.1 s left of a 2 s deadline.
   The run passed, but a small change could break it. Offer `cppmodel:parameter-sweep` with the
   margin as the metric to find how much headroom there really is.
+- For a failed rule, or a thin margin, export a `png` of the rule's signal and its
+  `CppModel.Verify.<name>` series around the `violations` interval (`export_signals`, see
+  `cppmodel:simulations`' "Looking at signals"). `violations` are in seconds and `from`/`to` in
+  ms, so multiply by 1000. Look at it, and give the snapshot link in the report row along with the
+  execution's `uiUrl`.
 - For a failure, `violations` gives the time; from there, follow
   `cppmodel:simulation-testing`'s "Debugging a failure". Don't loosen a threshold to make a run
   pass. A threshold changes only when the requirement changes, and the customer decides that.
@@ -204,7 +209,8 @@ simulations the report is about as recorded runs first, then read the file and c
 
 Give the matrix in the reply. If the user wants to keep or share it, offer to write it to the
 project (e.g. `docs/requirements-coverage.md`, linking each execution by its `uiUrl`) or publish it as a
-page. In CI, `cppmodel:ci-pipeline` can keep the file as a build artifact.
+page. The file links executions only, never `/snapshots/` links: those expire after 7 days.
+In CI, `cppmodel:ci-pipeline` can keep the file as a build artifact.
 
 ## Afterwards
 
