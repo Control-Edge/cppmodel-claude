@@ -283,11 +283,12 @@ Once the values are confirmed, report:
   for a pass and nonzero for a fail (255 on Linux/macOS, -1 on Windows).
 - what the scenario showed in the outputs the user cares about
 - the execution id (from `list_executions`) or the run's fingerprint and index, so this run can
-  be found and compared later
+  be found and compared later, and its `uiUrl`
 
-To compare the scenario with the default run or an earlier scenario, fetch both executions by id
-with `get_execution` (see `cppmodel:simulations`' "The workspace is part of the loop"), instead of
-rerunning the other one.
+To compare the scenario with the default run or an earlier scenario, use `what_changed` with both
+execution ids for the parameters that differ and the comparison's `uiUrl`, then fetch both with
+`get_execution` for the signals you report (see `cppmodel:simulations`' "Comparing runs"), instead
+of rerunning the other one.
 
 If the run failed and the reason isn't obvious, continue with `cppmodel:simulation-testing`'s
 "Debugging a failure" section.

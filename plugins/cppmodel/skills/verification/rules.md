@@ -85,7 +85,11 @@ by another kind of rule, a step rule is updated outside the step function or twi
 a rule gets another kind's update. Creating a rule again under the same name returns the same rule
 with the new settings.
 
-## Outcome parameter `CppModel.Verify.<name>`
+## Outcome: `verification.<name>`
+
+Each rule's outcome is stored in the execution's `verification` field under its name (SDK 0.12.0+;
+0.11.0 stored it as the parameter `CppModel.Verify.<name>`, which the `cppmodel` MCP server also
+returns under `verification`):
 
 ```json
 {
@@ -102,7 +106,10 @@ with the new settings.
 `status` is `pass`, `fail` or `error` (a signal rule's signal was never there). `violations` are
 time intervals in seconds.
 
-## Requirement file `cppmodel-requirements.json`
+## Requirement coverage: `requirements` and `cppmodel-requirements.json`
+
+From SDK 0.12.0 the execution has `requirements`: each ID the run named, with the same entry as in
+the file below. The file is still written, and with 0.11.0 it is the only place the IDs are kept.
 
 ```json
 {

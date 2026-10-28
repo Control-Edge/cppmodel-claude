@@ -1,6 +1,6 @@
 ---
 name: cppmodel:simulations
-description: Query CppModel Workspace API results - list simulations, fetch the latest results for one, list its execution history, or compare executions with each other. Every simulation run is submitted to the workspace, and its execution history is how runs are compared. Use when asked about CppModel simulation results, executions, how a run compares with an earlier one, or the Workspace API, in a project that uses the CppModel libraries.
+description: Query CppModel Workspace API results - list simulations, fetch the latest results for one, list its execution history, see what changed between two executions (code, parameters, signals), or compare executions with each other, with links into the workspace web UI. Every simulation run is submitted to the workspace, and its execution history is how runs are compared. Use when asked about CppModel simulation results, executions, how a run compares with an earlier one or what changed since it, or the Workspace API, in a project that uses the CppModel libraries.
 ---
 
 ## The tools: the `cppmodel` MCP server
@@ -29,6 +29,7 @@ an ad-hoc program instead, and never search the project for result files in thei
 | `get_latest_result` | the latest execution: inputs, parameters, results |
 | `list_executions` | execution history, newest first, with id, time, status (up to 1000 per page) |
 | `get_execution` | one past execution by id, same shape as `get_latest_result` |
+| `what_changed` | what differs between two executions: code, parameters, signal names (see "Comparing runs") |
 | `get_binary_runs` | the runs of one build, by run index, each with `passed` (see "Runs of one build") |
 | `get_pending_inputs` | the document waiting for this account's next execution (usually none) |
 | `set_inputs` | post this account's next execution's inputs/parameters (see below) |
@@ -46,6 +47,13 @@ fetch only the series you need.
 
 Execution ids are keys from `list_executions`, not positions: the first execution isn't `"0"` or
 `"1"`. On a simulation others run too (`scope: "team"`), the latest execution may not be yours.
+
+Results carry `uiUrl`, a link into the workspace web UI, which plots the signals: each simulation in
+`list_simulations`, each execution in `list_executions`, the execution `get_execution` read (plus
+`whatChangedUiUrl`, its comparison with the run before it), a `what_changed` comparison, and a
+`submit_execution`. `get_latest_result` and `get_binary_runs` link the simulation's page, which
+shows its latest execution. Whenever you tell the user about a simulation, a run or a comparison,
+give them the matching link so they can look at it themselves.
 
 `set_inputs` posts a document the account's next execution of that simulation consumes; other
 users' runs neither read nor consume it. Don't call it directly from here. Use
@@ -93,6 +101,26 @@ records its `fingerprint` and `start` index) or repeated runs of a test, instead
 every user. Executions from older SDKs, or recorded before the server indexed fingerprints, aren't
 found; use `list_executions` for those.
 
+## Comparing runs: `what_changed`
+
+`what_changed` (`simulation`, optional `current_id`, `previous_id`) says what differs between two
+executions without fetching their data:
+
+- `code_changed`: whether their `CppModel.BinaryFingerprint` differs (`null` unless both have one);
+- the parameters that changed (`old`/`new`), were added or were removed;
+- every input and output name with `in`: `both`, `current` or `previous`.
+
+Without ids it compares the simulation's two latest executions; with only `current_id`, that
+execution and the one submitted before it; with both, those two. It doesn't compare signal
+values: fetch those with `get_execution` and `signals`, or give the user its `uiUrl`, which overlays
+both runs' signals in the web UI. Each run in the result also has its own `uiUrl`.
+
+Start with it whenever the question is why a run differs from an earlier one: it says at once
+whether the code was rebuilt, which values were different, and which signals appeared or
+disappeared, so you fetch only the series that matter. If the server has no `what_changed`, fetch
+both executions with `get_execution` (`summary: true`) and compare their parameters and signal
+names yourself.
+
 ## The workspace is part of the loop
 
 Every simulation run is submitted to the workspace, and its execution history is the record of the
@@ -111,8 +139,9 @@ by id later. So:
   then report, whether a pass/fail, a metric, a conclusion or a before/after comparison, comes from
   a recorded run of the same binary. Every iteration ends with one.
 - **Compare runs through the history.** Before vs after a change, one scenario against another, a
-  sweep against an earlier sweep: `list_executions` finds them, `get_execution` fetches each by id,
-  with `signals` for just the series being compared. A sweep or other batch of one build is
+  sweep against an earlier sweep: `list_executions` finds them, `what_changed` says what differs
+  between two of them, and `get_execution` fetches each by id, with `signals` for just the series
+  being compared. A sweep or other batch of one build is
   fetched with `get_binary_runs` instead. Two records with different `CppModel.BinaryFingerprint`
   came from different builds. Don't rebuild an old version to regenerate
   results the history already holds. Don't write scripts, extra tests, or extra printf/logging to
@@ -127,8 +156,8 @@ by id later. So:
   and no other executable uses it, so its executions can be followed as one history
   (`cppmodel:simulation-testing`, "New case: input document or new simulation").
 - **Name executions when reporting.** When reporting a result, give its execution id, or for a run
-  of a batch its fingerprint and index (and the UI link: `<uiUrl>/simulations/<name>`), so the user
-  and later sessions can find exactly that run.
+  of a batch its fingerprint and index, and its `uiUrl` from the tool's result, so the user and
+  later sessions can find exactly that run.
 - **History isn't clutter.** Never delete a simulation to tidy up (see `delete_simulation` above).
 
 ## Local runs
@@ -174,9 +203,11 @@ results were only a preview.
 
 CppModel is multi-tenant: licensed accounts get a dedicated `w<number>.cppmodel.com` workspace,
 free accounts share `free-workspace.cppmodel.com` (results are still per user). The MCP server
-picks the workspace from the login; `get_workspace` says which one, and a simulation's page in the
-UI is `<uiUrl>/simulations/<url-encoded name>`. Don't assume a `w<number>` workspace when
-explaining a URL.
+picks the workspace from the login; `get_workspace` says which one, with its `uiUrl`. Prefer the
+`uiUrl` links the tools return. To build one yourself (name and ids URL-encoded):
+`<uiUrl>/results/<name>` (a simulation's latest execution), `<uiUrl>/results/<name>/executions/<id>`
+(one execution), `<uiUrl>/what-changed/<name>?current=<id>&previous=<id>` (two compared) and
+`<uiUrl>/team-simulations`. Don't assume a `w<number>` workspace when explaining a URL.
 
 ## Running simulations still needs `.env`
 
@@ -212,14 +243,22 @@ changed, plus the end time, so the value between two points is the earlier point
 A simulation with verification rules (SDK 0.11.0+, `cppmodel:verification`) also records, per
 rule:
 
-- the parameter `CppModel.Verify.<name>`: a JSON object with `status` (`pass`/`fail`/`error`),
-  `margins` (> 0 headroom, < 0 missed by that much, in the signal's units or seconds), `metrics`,
-  `violations` (time intervals in **seconds**, not ms) and `explanation`;
+- under `verification`, keyed by rule name, its outcome: `kind`, `status` (`pass`/`fail`/`error`),
+  `pass`, `margins` (> 0 headroom, < 0 missed by that much, in the signal's units or seconds),
+  `metrics`, `violations` (time intervals in **seconds**, not ms) and `explanation`;
 - the output series `CppModel.Verify.<name>`: 1 until the rule first fails, then 0.
 
-For "why did it fail", read those parameters before fetching any series. Requirement IDs
-(`VerifyRequirement`) are not in the execution record. They are only printed and written to a
-local `cppmodel-requirements.json` (see `cppmodel:verification`, step 6).
+SDK 0.11.0 stored each outcome as the parameter `CppModel.Verify.<name>` instead; the MCP server
+moves those into `verification`, so every execution reads the same. A local `--results` file is
+the binary's own: with 0.11.0, look in its `parameters`.
+
+A simulation that names requirements (`VerifyRequirement`, SDK 0.12.0+) also has `requirements`:
+requirement ID → `{whole_run, steps, from_s, to_s}`, how the run covered it. Naming an ID says the
+run addresses it; whether it was met is the run's own pass/fail. With 0.11.0 the IDs are only
+printed and written to a local `cppmodel-requirements.json` (see `cppmodel:verification`, step 6).
+Both fields are left out when the run has no rules or names no requirement.
+
+For "why did it fail", read `verification` before fetching any series.
 
 Whose inputs the `inputs` are depends on what the simulation runs (see
 `cppmodel:simulation-testing`'s "which side is being simulated" note). For a plant-alone

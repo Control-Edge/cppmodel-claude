@@ -1,6 +1,6 @@
 {
   "name": "cppmodel",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "description": "Build, run, and query CppModel simulations and their Workspace API results",
   "mcpServers": {
     "cppmodel": {

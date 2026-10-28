@@ -272,8 +272,9 @@ set -a && source .env && set +a && ctest --test-dir build --output-on-failure
 
 Passing isn't the only check. Every simulation's history already holds its executions from before
 the update, so for each one compare the new execution with the last one before the swap
-(`list_executions`, then `get_execution` for both with the same `signals`; see
-`cppmodel:simulations`' "The workspace is part of the loop"). Outputs that changed with no input or
+(`list_executions` for the ids, `what_changed` with both, then `get_execution` for both with the
+same `signals`; see `cppmodel:simulations`' "Comparing runs"). `what_changed` should show the code
+changed and no parameter differences, apart from any the new SDK adds or retires. Outputs that changed with no input or
 code change in between are a behaviour change in the SDK; report them even if every test passed.
 A new `CppModel.BinaryFingerprint` is expected (the executables were relinked) and isn't one.
 

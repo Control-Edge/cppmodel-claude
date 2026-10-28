@@ -36,15 +36,18 @@ What the library does with them:
 - Each rule writes the output `CppModel.Verify.<name>`: 1 until the rule first fails, then 0 to the
   end. A short failure in a long run stays visible.
 - At the end of the run, each rule's outcome is printed (`CppModel.Verify.<name>: PASS|FAIL ...`)
-  and stored as the parameter `CppModel.Verify.<name>`: a JSON object with `kind`, `status`
-  (`pass`/`fail`/`error`), `margins`, `metrics`, `violations` (time intervals in seconds) and
-  `explanation`.
+  and stored in the execution's `verification` field under the rule's name: a JSON object with
+  `kind`, `status` (`pass`/`fail`/`error`), `pass`, `margins`, `metrics`, `violations` (time
+  intervals in seconds) and `explanation`. SDK 0.11.0 stored it as the parameter
+  `CppModel.Verify.<name>` instead; the `cppmodel` MCP server returns those under `verification`
+  too.
 - Every rule has a **margin** in physical units: > 0 is headroom, < 0 is how far it missed.
 - `VerifyRequirement(id)` called in the constructor/`Init` covers the whole run. Called in the
   step function, it covers that step. At the end the IDs are printed (`CppModel.Requirements: ...`)
   and written to `cppmodel-requirements.json` in the working directory, or to the file
-  `CPPMODEL_REQUIREMENTS_FILE` names. **They are not part of the execution record.** The workspace
-  only has the rules' outcomes.
+  `CPPMODEL_REQUIREMENTS_FILE` names. From SDK 0.12.0 they are also in the execution's
+  `requirements` field (ID → `whole_run`, `steps`, `from_s`, `to_s`). With 0.11.0 they are not
+  part of the execution record, only in the file.
 
 ## 0. Check the SDK
 
@@ -154,12 +157,13 @@ silently. For each rule, show one run where it fails, at the step where it shoul
   separate **negative simulation** that wires a deliberately broken controller variant in C/C++,
   with the same rules (`cppmodel:simulation-testing`, "New case: input document or new simulation"). A
   test-only fault switch read from a parameter in the harness also works, and the SDK's
-  `VerifyZoneControl` does this (`CppModel.Verify.Controller` with `reference`, `late-smoke`,
-  `aggressive`...); follow it only if the project already uses that pattern. Never add a fault
+  `VerifyZoneControl` does this (the parameter `Controller` with `reference`, `late-smoke`,
+  `aggressive`...; never a `CppModel.*` name, which is reserved); follow it only if the project already uses that pattern. Never add a fault
   switch to production controller code.
 - While iterating, these can be local runs (`--results`). Finish with recorded runs.
-- Check from each run's `CppModel.Verify.<name>` parameter that the expected rules failed, with
-  the expected `violations` intervals, and that the others still passed.
+- Check from each run's `verification` that the expected rules failed, with the expected
+  `violations` intervals, and that the others still passed. `what_changed` against the passing
+  run confirms the failing run differs only in what you meant to change (the input, or the build).
 - Keep the negative cases as `ctest` tests marked `WILL_FAIL`
   (`cppmodel:ci-pipeline`'s "Input profiles" and "Sweeps"), so a rule that stops being able to fail is
   noticed.
@@ -171,10 +175,10 @@ covered requirement IDs. Report from the recorded execution, through the `cppmod
 (`cppmodel:simulations`):
 
 - `get_execution` (or `get_latest_result`) with `summary: true`, then `signals` for
-  `CppModel.StepResult` and the failing rules' `CppModel.Verify.<name>` series. The parameters
-  carry every rule's outcome object.
+  `CppModel.StepResult` and the failing rules' `CppModel.Verify.<name>` series. `verification`
+  carries every rule's outcome object.
 - Report one row per rule: requirement ID, rule, `status`, its margins with units, and the
-  `explanation` for a failure. Give the execution id.
+  `explanation` for a failure. Give the execution id and its `uiUrl`.
 - **Flag thin margins** on passing rules, e.g. a response with 0.1 s left of a 2 s deadline.
   The run passed, but a small change could break it. Offer `cppmodel:parameter-sweep` with the
   margin as the metric to find how much headroom there really is.
@@ -184,17 +188,23 @@ covered requirement IDs. Report from the recorded execution, through the `cppmod
 
 ## 6. Report requirement coverage
 
-Coverage is only in `cppmodel-requirements.json` (or `CPPMODEL_REQUIREMENTS_FILE`), which the
-library writes. It is the one result that isn't in the workspace, so read that file directly. It
-keeps one entry per simulation, from its last run in that working directory: `time`, `passed`,
-and per ID `whole_run`, `steps`, `from_s`, `to_s`.
+From SDK 0.12.0, each execution carries its own coverage in `requirements`: per ID `whole_run`,
+`steps`, `from_s`, `to_s`. Read it from the workspace, together with the verdict:
 
-- **Make the file current first.** A local run, a negative test or an old build also replaces its
-  simulation's entry. Run the simulations the report is about as recorded runs (usually `ctest`
-  from the build folder), each with its normal inputs. Then read the file, and check each entry's
-  `time` against the run.
-- **Take each verdict from the workspace**, not from the file's `passed`: the latest execution of
-  each simulation (`list_executions`/`get_execution`), with its id and its rules' outcomes.
+- **Use each simulation's recorded run with its normal inputs**: its latest execution
+  (`list_executions`/`get_execution`), checking with `what_changed` against the previous one that
+  it wasn't a negative or scenario run (different parameters) or an old build (`code_changed`).
+  If the latest is one of those, take the last normal run, or run the simulations again as
+  recorded runs (usually `ctest` from the build folder).
+- **Take the verdict from the same execution**: its rules' outcomes and pass/fail, with its id.
+
+With SDK 0.11.0, coverage is only in `cppmodel-requirements.json` (or
+`CPPMODEL_REQUIREMENTS_FILE`), which the library writes in the working directory. It keeps one
+entry per simulation, from its last run there: `time`, `passed`, and the same per-ID entries. A
+local run, a negative test or an old build also replaces its simulation's entry, so run the
+simulations the report is about as recorded runs first, then read the file and check each entry's
+`time` against the run. Take each verdict from the workspace, not from the file's `passed`.
+
 - **Build the matrix**: one row per requirement in the project's list, with the simulations and
   rules that cover it, whole run or the covered time range, pass/fail, the lowest margin, and the
   execution id. Then list:
@@ -208,7 +218,7 @@ and per ID `whole_run`, `steps`, `from_s`, `to_s`.
   rule only says the test exercised it. Say so in the report.
 
 Give the matrix in the reply. If the user wants to keep or share it, offer to write it to the
-project (e.g. `docs/requirements-coverage.md`, linking each execution in the UI) or publish it as a
+project (e.g. `docs/requirements-coverage.md`, linking each execution by its `uiUrl`) or publish it as a
 page. In CI, `cppmodel:ci-pipeline` can keep the file as a build artifact.
 
 ## Afterwards

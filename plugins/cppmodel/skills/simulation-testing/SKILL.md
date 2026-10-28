@@ -306,9 +306,10 @@ set -a && source .env && set +a && ./build/<path-to>/<SimulationName>
 (With a Visual Studio generator the binary is under `build/<Config>/`.)
 
 Exit code 0 means every cycle's `StepResult` was 1. Nonzero means at least one cycle failed, but
-the binary itself gives no detail about which one - it only prints a
-`UI: https://<workspace>.cppmodel.com/simulations/<SimulationName>` line, its
-`CppModel.BinaryFingerprint`, and, once submitted, the new `Execution:` id. A binary that fails to start with a
+the binary itself gives no detail about which one - it only prints a `UI:` line, its
+`CppModel.BinaryFingerprint`, and, once submitted, the new `Execution:` id. The `UI:` line's
+`/simulations/<SimulationName>` path isn't a page of the current web UI; give the user the
+`uiUrl` the `cppmodel` tools return for the execution instead (`cppmodel:simulations`). A binary that fails to start with a
 missing `libcppmodel.so.1`/`libcppmodel.dylib`/`cppmodel.dll` was built without
 `cppmodel_deploy_runtime(<target>)` (below).
 
@@ -367,9 +368,11 @@ Workflow:
    just the first. A run is a snapshot of the whole sequence, and it carries on past a failing
    cycle, so one trace holds all its failures: list them all before fixing anything, and don't
    rerun to find the next one. If the simulation uses verification rules (SDK 0.11.0+), start from
-   the parameters instead: each failed rule's `CppModel.Verify.<name>` gives its `explanation` and
-   all its `violations` (time intervals in seconds), and its output series of the same name drops
-   to 0 where it first failed. See `cppmodel:verification`.
+   the execution's `verification` instead: each failed rule's outcome gives its `explanation` and
+   all its `violations` (time intervals in seconds), and its output series
+   `CppModel.Verify.<name>` drops to 0 where it first failed. See `cppmodel:verification`.
+   If an earlier run passed, `what_changed` between the two (`cppmodel:simulations`) says first
+   whether the code, a parameter or the set of signals changed.
 2. For each failure, cross-reference the step number's transitions to identify which step
    was running at that timestamp (with the SDK's steps, the run's exit code is already the first
    failing step's number), and the local time within that step (absolute time minus the step's start
@@ -388,9 +391,10 @@ Workflow:
    recorded plant trace would override the plant), unless the failing run had them forced. Once a fix looks right, do one recorded run the way the
    failing one ran (plain, or with that `--inputs <file>`), and confirm the clean trace from that
    execution.
-5. Compare the new execution with the failing one through the history (`list_executions`, then
-   `get_execution` for both ids with the same `signals`), so the fix is shown to change what it
-   was meant to change and nothing else. Don't add a temporary test or extra outputs to collect
+5. Compare the new execution with the failing one through the history: `what_changed` with both
+   ids (from `list_executions`) for the code, parameters and signal names, then `get_execution`
+   for both with the same `signals`, so the fix is shown to change what it was meant to change and
+   nothing else. Give the user the comparison's `uiUrl`, which overlays both runs. Don't add a temporary test or extra outputs to collect
    what the two executions already recorded.
 
 If the trace's `inputs`/`parameters` show values other than the source's fallbacks (for a

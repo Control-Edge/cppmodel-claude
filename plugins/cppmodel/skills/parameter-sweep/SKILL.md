@@ -97,8 +97,8 @@ Agree on:
 - **What to measure.** Pass/fail is always recorded (exit code, `CppModel.StepResult`). Ask what
   else matters: peak or overshoot of an output, settling time, the final value, the time an event
   first happens. Knowing this up front decides which signals to fetch in step 6. If the simulation
-  has verification rules (SDK 0.11.0+), each rule's margin (`margins` in its
-  `CppModel.Verify.<name>` parameter) is a ready-made metric. Its sign flips at the pass/fail
+  has verification rules (SDK 0.11.0+), each rule's margin (`margins` in its outcome under the
+  execution's `verification`) is a ready-made metric. Its sign flips at the pass/fail
   boundary, so it shows how close each passing run came.
 - **Size and time.** Every run is a real execution: it takes the binary's full runtime, adds an
   entry to the simulation's execution history, and costs a few API calls, which are rate-limited.
@@ -226,8 +226,11 @@ Each run in `get_binary_runs` has its `index`, `passed` (every cycle's `CppModel
 - For a visual comparison, offer to plot the key signal across runs. Load the `dataviz` skill
   before drawing any chart.
 
-Point the user at the web UI for any run they want to inspect:
-`<uiUrl>/simulations/<name>` (`get_workspace` gives `uiUrl`), with the run's fingerprint and index.
+Point the user at the web UI for any run they want to inspect: `get_binary_runs` gives the
+simulation's page as `uiUrl`, so name the run's fingerprint and index with it. For a link to one
+run, find its id with `list_executions`, whose items each have their own `uiUrl`. To show how two
+runs differ, `what_changed` with their ids gives the parameters that differ and a `uiUrl` that
+overlays both.
 
 ## 8. Follow-ups worth offering
 
@@ -243,7 +246,8 @@ Point the user at the web UI for any run they want to inspect:
 - **Re-run the same documents after code changes** to confirm the boundary moved the right way.
   Every run of both sweeps stays in the execution history, so compare the new sweep against the
   old one by the fingerprint and start index in each `sweep.json` (the rebuilt binary has a new
-  fingerprint), not by re-running the old code.
+  fingerprint), not by re-running the old code. For one point of each, `what_changed` with the two
+  execution ids confirms only the code changed (`code_changed`, no parameter differences).
 
 Finish with where `sweep.json` and the documents are, and whether a previously pending document
 was re-posted.

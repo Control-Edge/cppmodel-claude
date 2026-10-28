@@ -113,7 +113,7 @@ Store the choice if asked (step 1's shape), merging with the keys already in the
 
 Behaviour comes first. A compliance rewrite must not change what the controller does: rerun its
 simulations (and verification rules, `cppmodel:verification`) and compare the executions before
-and after through the workspace history (`cppmodel:simulations`).
+and after through the workspace history (`what_changed`, then the signals; `cppmodel:simulations`).
 
 ## 5. Check with their checker, then report
 
