@@ -9,7 +9,7 @@
       "name": "cppmodel",
       "source": "./plugins/cppmodel-portable",
       "description": "Build, run, and query CppModel simulations and their Workspace API results",
-      "version": "0.24.0",
+      "version": "0.25.0",
       "license": "MIT"
     }
   ]

@@ -207,7 +207,9 @@ there was one.
 
 **When the user wants to try several values first**, e.g. to find the one that meets a requirement,
 explore with local runs: the same command with `--results <scratch>/out-<n>.json` added, one
-document file per try. Read each results file directly, change the document, and run again.
+document file per try. Take each try's pass/fail from the run's exit code and printed
+`CppModel.Verify` lines, open the results file only for a value or two (no analysis scripts; when a
+try needs more, record it and ask the workspace), change the document, and run again.
 Nothing reaches the workspace. When the values are settled, run the chosen file once more without
 `--results`. That recorded run is the result. Never report a local run's numbers as the
 scenario's outcome (`cppmodel:simulations`' "Local runs").

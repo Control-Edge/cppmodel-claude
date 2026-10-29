@@ -42,6 +42,19 @@ What the library does with them:
   `CppModel.Verify.<name>` instead; the `cppmodel` MCP server returns those under `verification`
   too.
 - Every rule has a **margin** in physical units: > 0 is headroom, < 0 is how far it missed.
+
+Why rules rather than hand-written `StepResult` logic or checking a trace afterwards:
+
+- **The check costs nothing after the run.** The library evaluates it every cycle, and one read
+  of the execution gives pass/fail, every violation interval and an explanation. No script scans
+  a trace, and nobody re-derives timings by hand.
+- **A margin, not just a verdict.** How much headroom a passing run had, or how far a failing one
+  missed, in the signal's units. A thin margin is worth reporting, and across a sweep the margins
+  show roughly where the boundary lies.
+- **It checks every run from then on**, `ctest`, CI and every sweep run alike, so a regression
+  shows up without anyone looking.
+- **Failures show where they happen** (`CppModel.StepResult` drops at the violation), and
+  requirement IDs are traced with the run.
 - `VerifyRequirement(id)` called in the constructor/`Init` covers the whole run. Called in the
   step function, it covers that step. At the end the IDs are printed (`CppModel.Requirements: ...`)
   and written to `cppmodel-requirements.json` in the working directory, or to the file

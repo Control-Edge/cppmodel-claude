@@ -71,8 +71,8 @@ what the simulation runs:
   With nothing posted for an input, the controller gets the plant's value and the record shows
   exactly that, since an execution records the fallback it used. A posted value overrides the
   plant for that input, for the whole run (the last point holds to the end). That's intended: it
-  is how a scenario forces a sensor (stuck switch, failed transducer). So post only the inputs the
-  scenario sets; leaving a plant-fed input out keeps the loop closed.
+  is how a use case forces a sensor (stuck switch, failed transducer). So post only the inputs the
+  use case sets; leaving a plant-fed input out keeps the loop closed.
 
   The focus is the controller, so its interface is the simulation's interface. Don't define the
   plant's inputs and outputs as signals of their own: where the two are cross-linked, plant inputs
@@ -171,12 +171,15 @@ with a name and settings (`Always`, `Response`, `Settle`, `Mode`, `Oscillation`,
 library tracks over time, ANDed with whatever the simulation sets itself. When the pass/fail
 criterion is about time or comes from a requirement (a range, an interlock, a deadline, settling,
 a mode sequence, no oscillation), use rules and `VerifyRequirement` through
-`cppmodel:verification` rather than hand-written step logic.
+`cppmodel:verification` rather than hand-written step logic. A rule's outcome is stored with every
+execution, with its violation intervals, an explanation and a margin, so a failure needs one read
+to understand instead of a trace analysis.
 
 ### C++
 
 From SDK 0.13.0, the library schedules steps itself (its `documentation/Steps.md`):
-`cppmodel::Scenario` and `RunScenario` here, `CMODEL_STEP`/`CppModel_runScenario` in C (below).
+`cppmodel::InputProfile` and `RunInputProfile` here, `CMODEL_STEP`/`CppModel_runInputProfile` in C
+(below; SDK 0.13.0 named them `Scenario`/`RunScenario`/`CppModel_runScenario`).
 
 Check first whether this project has its own base class layered on top of
 `cppmodel::Simulation` (or, in code written before SDK 0.8, `CppModelBase::Simulation` from
@@ -185,7 +188,7 @@ Check first whether this project has its own base class layered on top of
 point override, and helpers for tracing which requirements each simulation exercises out to a
 requirements file. If a wrapper like this exists anywhere in the project, subclass *that* and
 follow its exact shape (populate its step container, override its per-cycle method, call its
-requirement-tracing helper if the scenario covers a named requirement) - don't build a second,
+requirement-tracing helper if the use case covers a named requirement) - don't build a second,
 competing mechanism alongside it. (From SDK 0.11.0 the library has its own `VerifyRequirement`; if
 the project's helper predates it, ask before switching, see `cppmodel:verification`.)
 
@@ -239,8 +242,8 @@ value, then `CppModel_destroy(sim)`. Either way, cross the boundary with
 The simulation still needs a step schedule chaining the steps of its behaviour in one file, using
 whatever mechanism the chosen path above provides (a project's own `steps` map/vector or
 `InternalStep_ts` + `RunInternalSteps`, else the SDK's steps from 0.13.0, below). Keep the steps to that one behaviour; an unrelated behaviour gets its own
-simulation ("New case: input document or new simulation" above). Give each distinct scenario a fresh `Init`-style reset function beforehand,
-unless deliberately continuing from the previous scenario's end state (also a valid, commonly used
+simulation ("New case: input document or new simulation" above). Give each distinct case a fresh `Init`-style reset step beforehand,
+unless deliberately continuing from the previous case's end state (also a valid, commonly used
 pattern - e.g. confirming a signal set in one step has the expected effect at the very start of
 the next).
 
@@ -252,31 +255,43 @@ trusting them.
 
 ### The SDK's steps (SDK 0.13.0+)
 
-Without a project mechanism, use the library's. Three words, one meaning each: an **input
-document** is the JSON (`{"inputs": [...]}`), a **step** runs for a duration, and a **scenario**
-is an ordered list of steps.
+Without a project mechanism, use the library's. The words, one meaning each: a **use case** is a
+simulation run with its input data (each `--inputs` run of the same build is another one), an
+**input document** is the JSON (`{"inputs": [...]}`), a **step** runs for a duration, and an
+**input profile** is an ordered list of steps.
+
+The names below are SDK 0.14.0's. SDK 0.13.0 called an input profile a scenario, and 0.14.0
+removed those names with no aliases: `CppModelScenario_ts`, `CMODEL_SCENARIO`,
+`CMODEL_STEP_SCENARIO`, `CppModel_runScenario`, `CppModel_scenarioDuration`,
+`CppModel_scenarioSteps`, `CppModel_loadScenarioInputs`, `CppModelStep_ts::scenario`,
+`cppmodel::Scenario`, `RunScenario`, `LoadScenarioInputs`. Use the names the project's vendored
+headers have; to move from one to the other, see `cppmodel:update-dependencies`.
 
 - **Step:** a function run every cycle for its duration. It gets the time since its step started
   (0 at its first cycle) and returns whether the cycle passed. C: `CMODEL_STEP(Fn, ms)`; C++:
   `{&Sim::Fn, this, ms}` or `{lambda, ms}`. No function (`NULL`/`nullptr`) only waits.
-- **Nested scenario:** a short sequence that brings the system to a state ("start the motor"),
-  written once and chained wherever a test needs that state. C: `CMODEL_STEP_SCENARIO(start)`;
-  C++: the `Scenario` itself. Declare it before the scenario that uses it.
+- **Nested input profile:** a short sequence that brings the system to a state ("start the
+  motor"), written once and chained wherever a test needs that state. C:
+  `CMODEL_STEP_INPUT_PROFILE(start)`, with `start` declared as
+  `CppModelInputProfile_ts start = CMODEL_INPUT_PROFILE(startSteps)`; C++: the `InputProfile`
+  itself. Declare it before the input profile that uses it.
 - **Inputs step:** an input document whose inputs are read during the step (`x` counts from the
   step's start), with an optional function checking each cycle. Use it for stimuli that are data,
   such as a field log or a profile, inside an ordered test. C: `CMODEL_STEP_INPUTS(path, CheckFn,
-  0)`; C++: `cppmodel::Scenario::Inputs(path, &Sim::Check, this)`. Duration 0 is the document's
+  0)`; C++: `cppmodel::InputProfile::Inputs(path, &Sim::Check, this)`. Duration 0 is the document's
   length. Inputs passed with `--inputs` or posted still win, and the document's parameters are
   ignored. Pass the folder from CMake (`target_compile_definitions(... SIMULATIONS_DIR=...)`)
   rather than relying on the working directory.
-- **Running it:** in the step function, call `CppModel_runScenario(self, &test, currentTime_ms)` /
-  `RunScenario(test, simulationTime_ms)` **before reading inputs** (it loads the inputs steps'
-  documents at time 0), and set `CppModel.StepResult` from its result. Create the simulation with
-  the scenario's length: `CppModel_scenarioDuration(&test, stepMs)` / `test.Duration(stepSize_ms)`.
+- **Running it:** in the step function, call `CppModel_runInputProfile(self, &test,
+  currentTime_ms)` / `RunInputProfile(test, simulationTime_ms)` **before reading inputs** (it loads
+  the inputs steps' documents at time 0; inputs read in `Init` need
+  `CppModel_loadInputProfile(self, &test)` / `LoadInputProfile(test)` there), and set
+  `CppModel.StepResult` from its result. Create the simulation with the input profile's length:
+  `CppModel_inputProfileDuration(&test, stepMs)` / `test.Duration(stepSize_ms)`.
 - **Timing:** each step lasts its duration rounded up to whole cycles, at least one; the last
-  step continues to the end of the run. The step is found from the time, so a scenario needs no
-  reset and can be reused anywhere.
-- **Step numbers:** running a scenario records the running step's number, counted from 1 across
+  step continues to the end of the run. The step is found from the time, so an input profile
+  needs no reset and can be reused anywhere.
+- **Step numbers:** running an input profile records the running step's number, counted from 1 across
   the flattened schedule, as `CppModel.Step` and `CppModel.StepNumber`. A failed run's result and
   exit code are the first failing step's number.
 
@@ -380,7 +395,9 @@ to pull the full execution trace: every `CppModel_getInput` signal under `inputs
 `CppModel.StepResult` and the step number) under `results`, each series as `{label, x, y}`
 with `x` in ms. Series only have points where the value changed, plus the end time. Don't grep the project for prior output, don't add
 extra logging/printf/file-dumping to the simulation to work around this, and don't write a new
-script to reconstruct the trace - the tool already returns it. For a long run, call it with
+script to reconstruct the trace - the tool already returns it, cut to what you ask for, which is
+far cheaper than writing, running and reading a script (`cppmodel:simulations`' "Ask the
+workspace instead of writing scripts"). For a long run, call it with
 `summary: true` first, then with `signals: [...]` for `CppModel.StepResult`, the step number
 (`CppModel.StepNumber`/`CppModel.Step` with the SDK's steps, or the project's own, e.g.
 `internalStepNumber`), and the signals around the failure.

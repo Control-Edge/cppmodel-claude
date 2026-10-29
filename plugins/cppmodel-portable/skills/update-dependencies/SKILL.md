@@ -241,6 +241,23 @@ old headers include `cppmodel.hpp`, and `CppModelBase`/`CppModelLib` are namespa
   - The Python and Node packages need the 0.11.0 library for these.
   - `CPPMODEL_BUILD_TOOL` (CMake, on by default) only matters to projects that build the library
     from source.
+- 0.14.0 (release notes):
+  - **Scenarios are now input profiles.** The 0.13.0 steps API names are removed, with no aliases.
+    It's a straight rename (step 7 does it without asking), headers only; the library's exports and
+    the C API are unchanged. Grep for `Scenario`/`scenario` and rename:
+    `CppModelScenario_ts` → `CppModelInputProfile_ts`, `CMODEL_SCENARIO` → `CMODEL_INPUT_PROFILE`,
+    `CMODEL_STEP_SCENARIO` → `CMODEL_STEP_INPUT_PROFILE`, `CppModel_runScenario` →
+    `CppModel_runInputProfile`, `CppModel_scenarioDuration` → `CppModel_inputProfileDuration`,
+    `CppModel_scenarioSteps` → `CppModel_inputProfileSteps`, `CppModel_loadScenarioInputs` →
+    `CppModel_loadInputProfile`, `CppModelStep_ts::scenario` → `::profile` (designated or
+    positional initializers that name it), `cppmodel::Scenario` → `cppmodel::InputProfile`,
+    `RunScenario` → `RunInputProfile`, `LoadScenarioInputs` → `LoadInputProfile`. Python/Node:
+    `InputProfile`, `run_input_profile`/`runInputProfile`, `load_input_profile`/`loadInputProfile`.
+    Leave the project's own identifiers and comments that say "scenario" alone unless asked.
+  - **A request rejected with HTTP 401 is retried once with a new token**, by the library and
+    every `cppmodel-tool` command (not with `CPPMODEL_ACCESS_TOKEN`, which can't be refreshed), and
+    **a submit is tried three times over about 10 s** on a connection failure or 5xx. Nothing to
+    fix; a script that re-ran a simulation after a 401 can drop that.
 
 ## 7. Fix call sites: mechanical changes now, ambiguous ones stop and ask
 

@@ -135,7 +135,8 @@ both runs' signals in the web UI. Each run in the result also has its own `uiUrl
 
 Start with it whenever the question is why a run differs from an earlier one: it says at once
 whether the code was rebuilt, which values were different, and which signals appeared or
-disappeared, so you fetch only the series that matter. If the server has no `what_changed`, fetch
+disappeared, so you fetch only the series that matter. It's one small call that reads no series,
+far cheaper than fetching both executions and diffing them. If the server has no `what_changed`, fetch
 both executions with `get_execution` (`summary: true`) and compare their parameters and signal
 names yourself.
 
@@ -191,6 +192,46 @@ export_signals {simulation: "CPidSystemSim", format: "png",
   with `get_export` (`export`: the id or the link, `format`: `png`, `csv` or `json`), usually as
   `png` first. An expired or unknown export gives `HTTP 404 NOT_FOUND`; fall back to the
   execution, if the user knows which.
+
+## Ask the workspace instead of writing scripts
+
+For an agent, the cheapest way to learn something about a run is to let it submit and then ask
+for exactly what the question needs. A recorded run costs nothing extra: the platform stores every
+input, parameter and output, and evaluates the verification rules while it runs. Each question
+after that is one tool call whose answer is already cut to size. A temporary script costs much
+more:
+
+- writing it, fixing it when it doesn't run the first time, running it, and reading its output;
+- reading a whole results file or execution into context, every series of it, to find a few
+  values;
+- leftover files to clean up, and numbers the user can't open or check later.
+
+So match the question to the tool:
+
+| You need | Ask for |
+|---|---|
+| which signals exist, their ranges | `get_execution`/`get_latest_result` with `summary: true` |
+| a few series | `get_execution` with `signals` |
+| values at given times, or a table to compute a metric from | `export_signals` `csv`, cut with `from`/`to` |
+| the shape: overshoot, lag, oscillation, an interlock | `export_signals` `png`, and look at it |
+| whether it passed, where and why it failed, how close it came | the execution's `verification` (rules, `cppmodel:verification`): status, `violations`, `explanation`, margins |
+| why this run differs from an earlier one | `what_changed`: rebuilt or not, which parameters, which signals, in one small call |
+| a whole batch of one build | `get_binary_runs` with `summary` or `signals` |
+
+- **Verification rules do the checking during the run.** A rule is checked every cycle by the
+  library, and its outcome is stored with the execution: pass/fail, every violation interval, an
+  explanation, and a margin in physical units (how much headroom, or how far it missed). That
+  replaces scanning a trace after the run for timings, ranges, settling or oscillation. The same
+  rule then checks every later run, `ctest` and CI run, and sweep run at no extra cost, and the
+  margins show where a sweep's boundary lies. Hand-written checks or scripts give none of that.
+- **`what_changed` is the cheap first step of any comparison.** It reads no series, yet it tells
+  you whether the code was rebuilt, which parameters differ and which signals came or went, so you
+  then fetch only the series that matter. Fetching two whole executions to diff them yourself
+  costs far more, and its `uiUrl` overlays both runs for the user anyway.
+- **Arithmetic over what the tools returned is fine**, such as a sweep's metric from fetched
+  series. A cross-run chart, which no export draws, is the one case for a chart of your own
+  (`dataviz`). Not fine: scripts that parse result files, resample, plot one execution, diff
+  executions, or re-check timings a rule could check.
 
 ## The workspace is part of the loop
 
@@ -260,9 +301,12 @@ missing, expired or forged token fails the run. Without the tool, a run falls ba
 `.cppmodeltoken` or `.env`. `--results` is refused when `CI` is set.
 
 Use local runs while iterating: trying parameter values before settling on a scenario, checking
-whether a fix makes a failing trace pass, or exploring a coarse region before a sweep. Read the
-results file directly, without a tool call. Don't use them for a test, `ctest`, CI, or to avoid a
-run showing up in the history.
+whether a fix makes a failing trace pass, or exploring a coarse region before a sweep. Take
+pass/fail from the run itself (exit code 0 or not, and the printed `CppModel.Verify.<name>:
+PASS|FAIL` lines), and open the results file only for a value or two. When a try needs more than
+that (scanning a series, a chart, a comparison), don't write a script to analyse the file: do the
+recorded run and ask the workspace ("Ask the workspace instead of writing scripts"). Don't use
+local runs for a test, `ctest`, CI, or to avoid a run showing up in the history.
 
 **End every iteration with a recorded run.** When an iteration is done, run the same binary again
 with the same `--inputs <file>` and without `--results`. It submits, consumes any pending

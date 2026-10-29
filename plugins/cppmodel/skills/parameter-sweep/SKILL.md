@@ -107,7 +107,8 @@ Agree on:
 - **Whether a coarse pass runs locally** (SDK 0.10.0+). A coarse pass that only locates the
   interesting region can run as local runs: the step-5 command with `--results
   <out>/local/NNN.json` added. It adds nothing to the history and needs no API calls besides the
-  token, and you read its results files directly. Its pass/fail map is a guide for designing the
+  token. Take each run's pass/fail from its exit code (0 or not) and printed `CppModel.Verify`
+  lines, opening a results file only for a value or two, not with an analysis script. Its pass/fail map is a guide for designing the
   refined sweep and is never reported as the outcome. The sweep the user gets results from is
   always recorded (`cppmodel:simulations`' "Local runs"). Offer this only for a pass that is
   exploratory by design, and say so.
@@ -175,8 +176,9 @@ default run, so stop.
   0.9.1+; before it, `Could not reach API. Running offline.`), its
   fingerprint line ends in `(not submitted)`, or it has no fingerprint line at all (a timeout
   included). One exception: a run whose only problem is `submitting the execution failed (HTTP
-  401 ...)` at the end hit a transient login failure (seen with SDK 0.9.4). It isn't indexed, so
-  the indices stay right. Re-run it once with a fresh token (re-post its document first with an
+  401 ...)` at the end hit a transient login failure (seen with SDK 0.9.4; from 0.14.0 the library
+  retries once itself, so there it's rarer, and runs with `CPPMODEL_ACCESS_TOKEN` aren't retried).
+  It isn't indexed, so the indices stay right. Re-run it once with a fresh token (re-post its document first with an
   SDK before 0.10.0) and go on if that run submits. Stop if it fails again.
 - **The binary was rebuilt mid-sweep.** The log's fingerprint differs from the first run's. Later
   runs are indexed under the new build.
@@ -221,8 +223,9 @@ Each run in `get_binary_runs` has its `index`, `passed` (every cycle's `CppModel
 - **Metrics from the execution records.** Fetch the series agreed in step 3 with `signals`.
   Series are change-compressed (`x` = the times the value changed, plus the end), so read them
   with hold-last-value. With chained input profiles, compute each metric per profile over its
-  time window in the document. Compute the metrics from these records; a short one-off computation over
-  them is fine. They are the API's own data. Never search the project for other result files, or
+  time window in the document. With verification rules, their outcomes and margins in each run
+  already answer "how close to failing" without computing anything. Compute other metrics from
+  these records; a short one-off computation over them is fine. They are the API's own data. Never search the project for other result files, or
   re-derive values some other way. For a sweep from an earlier session, `sweep.json`'s
   `fingerprint` and `start` fetch the runs again in order.
 - **Refine where it matters.** If the boundary falls between two values, offer a second, finer
