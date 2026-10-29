@@ -136,8 +136,8 @@ export of up to 8 signals of one execution, plus chosen parameters, and returns 
   chattering.
 - `csv`: a `time_ms` column (the union of every signal's x) and one column per signal, empty
   outside that signal's own time span. Use it when only the values matter, such as comparing
-  signals at given times or computing a metric. Above 256 KiB it is cut at a row boundary and
-  `csvTruncated` says so; narrow the export.
+  signals at given times or computing a metric. The table is the result's `csv` field (CRLF line
+  ends). Above 256 KiB it is cut at a row boundary and `csvTruncated` says so; narrow the export.
 - `json`: the series `{label, source, scale, xOffset, yOffset, x, y}` with the range and transforms
   applied, change-compressed, plus `parameters`. For the raw series, `get_execution` with `signals`
   works as well.

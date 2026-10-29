@@ -288,6 +288,13 @@ Don't try linker workarounds.
 as it is. A simulation that fails to start with "cannot open shared object file
 libcppmodel.so.1" (or a missing `cppmodel.dll`) was built without it.
 
+With MSYS2 MinGW, it doesn't copy the compiler's own runtime DLLs (`libstdc++-6.dll`,
+`libgcc_s_seh-1.dll`, `libwinpthread-1.dll`). Run from anywhere but that environment's shell, a
+simulation then loads whichever copy comes first on PATH, such as Git for Windows', and exits at
+once with `0xc0000139` and no message. Add `if(MINGW) add_link_options(-static) endif()` to
+`CMakeLists.txt` after `find_package(cppmodel ...)`, so the simulations carry the runtime
+themselves.
+
 Running the simulations (`ctest`) also needs credentials. Check for a `.env` at the project root
 with `CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD` (see `cppmodel:simulation-testing`'s
 "Requirements"). If it's missing, stop after the build and tell the user what to add. Don't run

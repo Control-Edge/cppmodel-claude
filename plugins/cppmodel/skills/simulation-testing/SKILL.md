@@ -311,7 +311,10 @@ the binary itself gives no detail about which one - it only prints a `UI:` line,
 `/simulations/<SimulationName>` path isn't a page of the current web UI; give the user the
 `uiUrl` the `cppmodel` tools return for the execution instead (`cppmodel:simulations`). A binary that fails to start with a
 missing `libcppmodel.so.1`/`libcppmodel.dylib`/`cppmodel.dll` was built without
-`cppmodel_deploy_runtime(<target>)` (below).
+`cppmodel_deploy_runtime(<target>)` (below). With MinGW, a binary that exits at once with no
+output and code `0xc0000139` (-1073741511; 127 in Git Bash) loaded another program's
+`libstdc++-6.dll` from PATH, often Git for Windows'. `cppmodel_deploy_runtime` copies only
+`cppmodel.dll`, not the compiler's runtime, so link MinGW targets statically (below).
 
 Every run is submitted to the workspace and stays in the simulation's execution history - see
 `cppmodel:simulations`' "The workspace is part of the loop". Never set `CPPMODEL_DISCARD_RESULTS`
@@ -334,6 +337,11 @@ target_link_libraries(<SimulationName> PRIVATE cppmodel::cppmodel)
 cppmodel_deploy_runtime(<SimulationName>)  # copies the CppModel library next to the executable
 add_test(NAME <SimulationName>Test COMMAND <SimulationName>)
 ```
+
+A project built with MinGW also needs, once per target or project-wide,
+`if(MINGW) target_link_options(<SimulationName> PRIVATE -static) endif()`, so the binary doesn't
+depend on `libstdc++-6.dll`, `libgcc_s_seh-1.dll` and `libwinpthread-1.dll` being first on PATH.
+`cppmodel.dll` stays a shared library next to the executable either way.
 
 Match the project's existing pattern if it has one (a loop over simulation files, a helper
 function). Don't add OpenSSL, zlib or `CPPHTTPLIB_*` settings; a project that still has them is on

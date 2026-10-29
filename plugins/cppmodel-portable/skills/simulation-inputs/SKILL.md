@@ -280,7 +280,9 @@ The result gets `applied` and `differences`:
 Once the values are confirmed, report:
 
 - pass/fail: whether `CppModel.StepResult` in `results` ever dropped to 0. The exit code is 0
-  for a pass and nonzero for a fail (255 on Linux/macOS, -1 on Windows).
+  for a pass and nonzero for a fail, but the nonzero value depends on the shell (255 on
+  Linux/macOS and in Git Bash, -1 or 4294967295 in PowerShell, 127 through Git Bash's `timeout`,
+  which is also "command not found"). Go by `StepResult`, not by the code.
 - what the scenario showed in the outputs the user cares about; optionally a `png` export of
   those outputs (`export_signals`, see `cppmodel:simulations`' "Looking at signals") with its
   link. The link expires after 7 days, so the execution id and `uiUrl` stay the durable reference

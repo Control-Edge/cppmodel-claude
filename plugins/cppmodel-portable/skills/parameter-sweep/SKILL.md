@@ -172,8 +172,10 @@ used another login and may not have consumed its document: stop as for a run tha
 nothing.
 
    (On Windows, start it from PowerShell with `Start-Process -RedirectStandardOutput` and stop it
-   after `Wait-Process -Timeout`.) Note the exit code in `sweep.json`: `0` passed, nonzero failed
-   (255 on Linux/macOS, -1 on Windows), `124` timed out.
+   after `Wait-Process -Timeout`.) Note the exit code in `sweep.json`: `0` passed, `124` timed
+   out, anything else failed. A failed run's code depends on the shell (255 on Linux/macOS and in
+   Git Bash, -1 in PowerShell, 127 through Git Bash's `timeout`, the same code as "command not
+   found"), so the log and step 6 decide what happened, not the code.
 
 After the **first run**, read the fingerprint from the `CppModel.BinaryFingerprint: <n>` line of
 its log. Call `get_binary_runs` with that fingerprint and `count: 0`: `total` includes the run just
@@ -187,7 +189,10 @@ default run, so stop.
 - **A run submitted no execution.** Its log has a line starting with `CppModel workspace:` (SDK
   0.9.1+; before it, `Could not reach API. Running offline.`), its
   fingerprint line ends in `(not submitted)`, or it has no fingerprint line at all (a timeout
-  included).
+  included). One exception: a run whose only problem is `submitting the execution failed (HTTP
+  401 ...)` at the end hit a transient login failure (seen with SDK 0.9.4). It isn't indexed, so
+  the indices stay right. Re-run it once with a fresh token (re-post its document first with an
+  SDK before 0.10.0) and go on if that run submits. Stop if it fails again.
 - **The binary was rebuilt mid-sweep.** The log's fingerprint differs from the first run's. Later
   runs are indexed under the new build.
 - **A run's log has a line starting with `CppModel: --inputs`.** The document is unusable; the line

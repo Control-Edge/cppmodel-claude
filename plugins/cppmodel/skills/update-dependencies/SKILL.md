@@ -126,7 +126,8 @@ download the chosen archive to a temp location and extract it into a **separate 
 directory**, not directly over `dependencies/`. Archives hold one top-level
 `CppModel-<version>-<platform>/` folder; stage its contents (e.g. `tar -xzf <file> -C <staging>
 --strip-components=1`, or unzip and move the folder's contents up) so the result has the layout
-described above.
+described above. On Windows, extract the `.zip` with PowerShell's `Expand-Archive` or
+`C:\Windows\System32\tar.exe`; Git Bash's and MSYS2's `tar` can't read it.
 
 ## 6. Diff the interface headers before swapping in
 

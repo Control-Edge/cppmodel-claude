@@ -188,7 +188,10 @@ A MinGW job on GitHub/Gitea uses `msys2/setup-msys2@v2` with `msystem: UCRT64` (
 `MINGW64`) and `pacboy: toolchain:p cmake:p ninja:p`, then runs its build steps with
 `shell: msys2 {0}`. Run the install script in its own `pwsh` step; when configuring from the MSYS2
 shell, pass the SDK path as a Windows path (`-DCMAKE_PREFIX_PATH="$(cygpath -m "$PWD/dependencies")"`)
-if `CMakeLists.txt` doesn't set it.
+if `CMakeLists.txt` doesn't set it. Run `ctest` from the MSYS2 shell too, unless the project
+links MinGW targets with `-static` (`cppmodel:setup-environment`, "Verify with a build"). Outside
+it, the simulations find another `libstdc++-6.dll` on PATH and exit with `0xc0000139` and no
+output.
 
 **Configure + build**: `cmake -S . -B build [-G Ninja] [-DCMAKE_C_COMPILER=...
 -DCMAKE_CXX_COMPILER=...]` then `cmake --build build`, matching whatever generator/flags this
