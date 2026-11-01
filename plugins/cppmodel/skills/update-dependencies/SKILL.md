@@ -17,7 +17,7 @@ What a drop contains changed in 0.8:
 
 - **0.8+**: one self-contained shared library per OS and architecture, the same for every
   compiler: `lib/` (`libcppmodel.so.1`, `libcppmodel.dylib`, or Windows' import library
-  `cppmodel.lib`), `bin/` (`cppmodel.dll` on Windows, and the prebuilt `cppmodel-tool`),
+  `cppmodel.lib`), `bin/` (`cppmodel.dll` on Windows; 0.8 to 0.14 also the prebuilt `cppmodel-tool`),
   `include/cppmodel/` (`cppmodel.h` C API, `cppmodel.hpp` header-only C++ API, `CModel.h`, and the
   old header names, which include `cppmodel.hpp`), `include/nlohmann/`, `lib/cmake/cppmodel/` (the
   CMake package), `share/cppmodel/example/`, `licenses/`.
@@ -189,8 +189,8 @@ old headers include `cppmodel.hpp`, and `CppModelBase`/`CppModelLib` are namespa
 - A custom `DataAdapter` derives from `cppmodel::DataAdapter`.
 - `ApiConnector`, `AuthHandler` (except `AuthHandler::RequireNonInteractive`), `Tools`,
   `SimulationController` and the other engine classes are gone. Code using `Tools::Workspace`
-  should move to `cppmodel-tool` (prebuilt in `bin/`) or, for interactive work, the `cppmodel` MCP
-  server. Ask before rewriting such a utility.
+  should move to the `cppmodel` MCP server for interactive work, or call the Workspace API itself.
+  Ask before rewriting such a utility.
 - `Simulate()` throws `cppmodel::Error` when `stepSize_ms` is 0 (it used to loop forever).
 - `CPPMODEL_OFFLINE` is gone; its replacement is `CPPMODEL_DISCARD_RESULTS`. If a script, CI file or
   test property sets either, point it out - the plugin's skills never run without submitting.
@@ -243,6 +243,28 @@ old headers include `cppmodel.hpp`, and `CppModelBase`/`CppModelLib` are namespa
     every `cppmodel-tool` command (not with `CPPMODEL_ACCESS_TOKEN`, which can't be refreshed), and
     **a submit is tried three times over about 10 s** on a connection failure or 5xx. Nothing to
     fix; a script that re-ran a simulation after a 401 can drop that.
+- 0.15.0 (release notes):
+  - **`cppmodel-tool` is discontinued.** `bin/` no longer has it, and the CMake option
+    `CPPMODEL_BUILD_TOOL` is gone. Grep the project and its CI files for `cppmodel-tool` and
+    `CPPMODEL_BUILD_TOOL`. For each use, show its replacement and ask before changing it (it's CI or
+    a script others rely on):
+    - `cppmodel-tool fetch ...` (simulations, executions, pending inputs, delete, runs of a
+      binary): the `cppmodel` MCP server does it for interactive work. A script or CI step that
+      must keep doing it calls the Workspace API itself; ask what it's for before rewriting it.
+    - `cppmodel-tool fetch fingerprint <binary>`: the `CppModel.BinaryFingerprint` line every run
+      prints.
+    - `cppmodel-tool sweep <plan> <out>`: run the binary once per case with `--inputs <case.json>`;
+      exit code 0 means every step passed, and each run prints its `Execution:` id (a step that
+      read `summary.json` reads those instead). That every value was used is checked afterwards
+      with `get_binary_runs` and `expected` (`cppmodel:parameter-sweep`); a CI job alone no longer
+      checks it.
+    - `cppmodel-tool promote <binary> <inputs.json> [--compare <out.json>]`: run the binary with
+      `--inputs <inputs.json>`, which submits, and check it with `get_execution` and `expected`.
+    - `-DCPPMODEL_BUILD_TOOL=...` in a build of the library from source: drop it.
+  - New, nothing to fix: **VirtualPLC** runs IEC 61131-3 Structured Text in a simulation
+    (`VirtualPlc.h` for C, `VirtualPlc.hpp` for C++, `cm_plc_*` in the C API, with the new status
+    `CM_ERROR_PROGRAM`), and a run inside a git repository records **`CppModel.GitHash`** (the
+    commit, with `-dirty` for uncommitted changes to tracked files).
 
 ## 7. Fix call sites: mechanical changes now, ambiguous ones stop and ask
 
@@ -290,10 +312,9 @@ If the build or tests fail after the best-effort fix, don't report success - sta
 failed, leave the backup in place, and ask before attempting further changes. Once the build and
 tests pass, it's safe to remove the backup.
 
-`cppmodel-tool` ships prebuilt in `dependencies/bin/` from 0.8, so it updates with the SDK. A
-project or CI job that built it from `dependencies/share/cppmodel/tools` (into e.g.
-`build/cppmodel-tool/`) should use `dependencies/bin/cppmodel-tool` instead (step 9). Don't run it
-here: sweeps and runs with posted inputs go through the MCP server.
+Don't run `cppmodel-tool` here, from an SDK that still has it: sweeps and runs with posted inputs go
+through the MCP server. A project or CI job that uses the tool and moves to 0.15.0 or later needs
+the replacements in the 0.15.0 notes (step 9 offers them).
 
 ## 9. Offer to keep CI and docs in sync
 
@@ -308,9 +329,11 @@ silently do**, to also:
   job keeps its MSYS2 toolchain).
 - When crossing 0.8, also clean up the pipeline: drop the OpenSSL/zlib/vcpkg install steps, the
   `COMPILER=`/`-Platform` arguments to the install script, and any step that builds
-  `cppmodel-tool` from `share/cppmodel/tools` (use `dependencies/bin/cppmodel-tool`). An MSYS2 job
+  `cppmodel-tool` from `share/cppmodel/tools` (up to 0.14 use `dependencies/bin/cppmodel-tool`;
+  from 0.15.0 there is no tool, see the 0.15.0 notes). An MSYS2 job
   keeps its MSYS2 setup but no longer needs OpenSSL/zlib packages. `cppmodel:ci-pipeline` step 5 shows the 0.8
   shape.
+- When crossing 0.15.0, replace every `cppmodel-tool` step as the 0.15.0 notes describe.
 - Update any version number mentioned in project docs (e.g. `README.md`) and the
   `find_package(cppmodel <version>)` minimum, if the project relies on something new.
 

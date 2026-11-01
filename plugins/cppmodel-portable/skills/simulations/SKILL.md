@@ -25,9 +25,7 @@ All Workspace API access goes through the plugin's `cppmodel` MCP server
 user's CppModel account (free or licensed, both work the same) over OAuth, so querying results
 needs no `.env` and no local tool. Running a simulation with chosen values, or a whole
 parameter sweep, also needs nothing built besides the simulation: `set_inputs`, then run the
-binary, then check the run with `get_binary_runs` and `expected`. The SDK's `cppmodel-tool` (prebuilt
-in `dependencies/bin/` from SDK 0.8) does the same for CI jobs and scripts only
-(`cppmodel:ci-pipeline`). Don't use it for work done here.
+binary, then check the run with `get_binary_runs` and `expected`.
 
 The server's instructions name the account and workspace the session is signed in as. Before the
 first `cppmodel` tool call in a conversation, tell the user that account and workspace in one short
@@ -311,11 +309,9 @@ local runs for a test, `ctest`, CI, or to avoid a run showing up in the history.
 **End every iteration with a recorded run.** When an iteration is done, run the same binary again
 with the same `--inputs <file>` and without `--results`. It submits, consumes any pending
 `set_inputs` document, and prints its `Execution:` id. Then check it with `get_execution` (that id,
-`expected` = the document) and report that execution, not the local file. With the SDK's
-`cppmodel-tool`, `cppmodel-tool promote <binary> <file> --compare <out.json>` does the same run and
-check, and also confirms the recorded run reproduced the local one. If it didn't reproduce (e.g. the
-simulation uses randomness or wall-clock time), say so and report the recorded run. The local
-results were only a preview.
+`expected` = the document) and report that execution, not the local file. Compare its results with
+the local run's; if it didn't reproduce (e.g. the simulation uses randomness or wall-clock time),
+say so and report the recorded run. The local results were only a preview.
 
 ## Workspaces
 
@@ -330,7 +326,7 @@ picks the workspace from the login; `get_workspace` says which one, with its `ui
 ## Running simulations still needs `.env`
 
 The MCP server only reads and records data; it never runs anything. The simulation binaries
-themselves (and `ctest`, and `cppmodel-tool` in CI) log in with `.env` at the project root:
+themselves (and `ctest`) log in with `.env` at the project root:
 
 ```
 CPPMODEL_USERNAME=...

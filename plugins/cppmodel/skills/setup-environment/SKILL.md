@@ -206,7 +206,7 @@ in CI or docs (see `cppmodel:update-dependencies` step 1). If nothing is pinned,
 older SDK needs `cppmodel:update-dependencies` first.
 
 The SDK unpacks as `lib/` (the shared library; on Windows the import library), `bin/` (on Windows
-`cppmodel.dll`, and `cppmodel-tool` everywhere), `include/cppmodel/` (`cppmodel.h`, `cppmodel.hpp`,
+`cppmodel.dll`; up to SDK 0.14 also `cppmodel-tool`), `include/cppmodel/` (`cppmodel.h`, `cppmodel.hpp`,
 `CModel.h`, and the old header names), `include/nlohmann/`, `lib/cmake/cppmodel/` (the CMake
 package; `cppmodelConfigVersion.cmake` holds the installed version), and `share/cppmodel/example/`.
 
@@ -287,8 +287,7 @@ with `CPPMODEL_USERNAME`/`CPPMODEL_PASSWORD` (see `cppmodel:simulation-testing`'
 
 Querying results and posting inputs go through the plugin's `cppmodel` MCP server, which needs no
 local build; mention that the user authenticates it once with `/mcp`. Runs with posted inputs and
-parameter sweeps go through it too, so don't use the SDK's prebuilt `bin/cppmodel-tool` here. It's
-only for CI jobs and scripts (`cppmodel:ci-pipeline`).
+parameter sweeps go through it too.
 The SDK writes a `.cppmodeltoken` login cache into the directory a simulation runs from, so make
 sure the project's `.gitignore` covers `.cppmodeltoken` along with `.env`.
 
