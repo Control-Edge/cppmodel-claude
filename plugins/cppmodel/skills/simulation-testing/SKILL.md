@@ -424,7 +424,7 @@ debugging or tuning. Those changes don't need documentation until the solution i
 The binary's stdout gives nothing to work with beyond pass/fail and a `UI: https://...` link -
 there is no local log, file, or cache holding the per-cycle signal trace. It only exists behind the
 Workspace API, or, for a local run (SDK 0.10.0+), in the file its `--results` names. Use the `cppmodel` MCP server's `get_latest_result` (see `cppmodel:simulations`)
-to pull the full execution trace: every `CppModel_getInput` signal under `inputs`, every
+to get the execution trace, cut to what you need: every `CppModel_getInput` signal under `inputs`, every
 `CppModel_getParameter` under `parameters`, and every `CppModel_setOutput` signal (including
 `CppModel.StepResult` and the step number) under `results`, each series as `{label, x, y}`
 with `x` in ms. Series only have points where the value changed, plus the end time. Don't grep the project for prior output, don't add
@@ -434,7 +434,9 @@ far cheaper than writing, running and reading a script (`cppmodel:simulations`' 
 workspace instead of writing scripts"). For a long run, call it with
 `summary: true` first, then with `signals: [...]` for `CppModel.StepResult`, the step number
 (`CppModel.StepNumber`/`CppModel.Step` with the SDK's steps, or the project's own, e.g.
-`internalStepNumber`), and the signals around the failure.
+`internalStepNumber`), and the signals around the failure. To look at those signals, or read their
+values over a window, ask `export_signals` for a `png` or `csv` with `from`/`to` instead of
+fetching whole series.
 
 Workflow:
 
@@ -463,9 +465,11 @@ Workflow:
    A fix to controller code (code that ships to the
    target) follows `cppmodel:coding-standard`.
 4. Fix, rebuild, rerun, re-fetch, and confirm the trace is clean end to end (`StepResult` never
-   dips to 0 anywhere) - not just that the process exit code was 0. With SDK 0.10.0+, the tries
-   in between can run without submitting: add `--results <out.json>` and read the trace from that
-   file. Add `--inputs <file>` with the failing execution's `inputs` and `parameters` when it ran
+   dips to 0 anywhere) - not just that the process exit code was 0. With SDK 0.10.0+, tries in
+   between whose exit code and printed `CppModel.Verify` lines are enough can run without
+   submitting: add `--results <out.json>`, and don't read the trace from that file. A try whose
+   trace you need to look at is submitted, then exported (`export_signals` `png` for the shape,
+   `csv` for values), which costs far less than reading the file. Add `--inputs <file>` with the failing execution's `inputs` and `parameters` when it ran
    with values other than the fallbacks, leaving out plant-fed inputs in a closed loop (the
    recorded plant trace would override the plant), unless the failing run had them forced. Once a fix looks right, do one recorded run the way the
    failing one ran (plain, or with that `--inputs <file>`), and confirm the clean trace from that

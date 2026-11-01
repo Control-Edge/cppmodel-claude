@@ -204,6 +204,11 @@ more:
   values;
 - leftover files to clean up, and numbers the user can't open or check later.
 
+The same goes for a local run's `--results` file: it holds every series of the run, and only a
+script or reading all of it gets anything out of it. `export_signals` and the other tools work only
+on submitted executions. So let the library submit whenever you'll look at more than pass/fail,
+and ask for a `png` or `csv` export of just the signals and time window you need.
+
 So match the question to the tool:
 
 | You need | Ask for |
@@ -245,7 +250,9 @@ by id later. So:
   run again.
 - **Local runs are for exploring, not for results** (SDK 0.10.0+; see "Local runs" below).
   `--inputs <file> --results <out.json>` runs without submitting, so you can try values or check a
-  fix many times while iterating. Its fingerprint line ends in `(not submitted)`. Whatever you
+  fix many times while iterating, as long as the exit code and the printed `CppModel.Verify` lines
+  answer the question. Its fingerprint line ends in `(not submitted)`. A try whose signals you need
+  to see is a recorded run, then a `png` or `csv` export. Whatever you
   then report, whether a pass/fail, a metric, a conclusion or a before/after comparison, comes from
   a recorded run of the same binary. Every iteration ends with one.
 - **Compare runs through the history.** Before vs after a change, one scenario against another, a
