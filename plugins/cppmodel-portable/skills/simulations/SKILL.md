@@ -89,7 +89,8 @@ asks to record such data, never to fake, patch or replace a run's results. Call 
 first to validate, and prefer a simulation name of its own (e.g. `<name> (field)`) so measured and
 simulated executions don't mix in one history. Pass `execution_time` (`DD-MM-YYYY HH:MM:SS`) when
 the data has a real start time; it defaults to now. Its `CppModel.BinaryFingerprint`, if given,
-must be a whole number; leave it out unless the data really came from that binary.
+must be a whole number, and its `CppModel.GitHash` a commit string; leave both out unless the data
+really came from that binary.
 
 `delete_simulation` removes the simulation with its entire execution history and any pending
 document, the same as deleting it in the UI. It can't be undone and affects everyone who uses that
@@ -117,13 +118,27 @@ records its `fingerprint` and `start` index) or repeated runs of a test, instead
 every user. Executions from older SDKs, or recorded before the server indexed fingerprints, aren't
 found; use `list_executions` for those.
 
+From SDK 0.15.0, a run whose executable is inside a git repository also records
+`CppModel.GitHash`, the commit checked out when it started (e.g. `d6ebfd2`, with `-dirty` when a
+tracked file had uncommitted changes; untracked build output doesn't count), and prints it next to
+the fingerprint. It's the only parameter that is a string, and it's missing outside a repository
+or without git. It tells a local run from a CI run of the same commit at a glance.
+
+A **VirtualPLC** simulation (SDK 0.15.0+, a controller in Structured Text, see
+`cppmodel:simulation-testing`) loads its `.st` files when it starts, so the fingerprint covers the
+executable but not the PLC code: a change to the `.st` files alone keeps the same fingerprint, and
+one build's runs in `get_binary_runs` may have run different PLC code. Compare
+`CppModel.GitHash` (and its `-dirty`) for those, and don't edit the `.st` files during a batch.
+
 ## Comparing runs: `what_changed`
 
 `what_changed` (`simulation`, optional `current_id`, `previous_id`) says what differs between two
 executions without fetching their data:
 
-- `code_changed`: whether their `CppModel.BinaryFingerprint` differs (`null` unless both have one);
-- the parameters that changed (`old`/`new`), were added or were removed;
+- `code_changed`: whether their `CppModel.BinaryFingerprint` differs (`null` unless both have one;
+  `false` for a VirtualPLC simulation whose Structured Text alone changed);
+- the parameters that changed (`old`/`new`), were added or were removed, `CppModel.GitHash` among
+  them (SDK 0.15.0+): a changed commit, or a `-dirty` appearing, shows there;
 - every input and output name with `in`: `both`, `current` or `previous`.
 
 Without ids it compares the simulation's two latest executions; with only `current_id`, that
@@ -346,8 +361,9 @@ A result (latest, or one execution by id) is one JSON document:
 - `inputs`: a list of `{label, x, y}`, with every posted input plus the fallback of each
   `CppModel_getInput*` the simulation read that wasn't posted;
 - `parameters`: the same for parameters, name → value, plus the reserved
-  `CppModel.SimulationTime`/`StepSize`, in seconds, and `CppModel.BinaryFingerprint` (SDK
-  0.7.0+, see above). A posted name appears even if the code never reads it;
+  `CppModel.SimulationTime`/`StepSize`, in seconds, `CppModel.BinaryFingerprint` (SDK
+  0.7.0+, see above) and `CppModel.GitHash` (SDK 0.15.0+, a string, see above). A posted name
+  appears even if the code never reads it;
 - `results`: a list of `{label, x, y}` output series, including `CppModel.StepResult` (1 for a
   cycle that passed, 0 for one that failed).
 

@@ -9,9 +9,13 @@ Controller code is the code that ships to the target: a decoupled component's mo
 law, the state machine, and the code that calls them on the target. Use this skill before writing
 or changing it.
 
-Simulation-only code is out of scope: plant models, simulation harnesses, test-only fault
-switches. It runs only on the PC and calls the CppModel SDK. Apply a standard there only if the
-user asks.
+A controller in IEC 61131-3 Structured Text (run in simulation by VirtualPLC) is controller code
+too. MISRA doesn't cover it: offer the standard the customer uses for PLC code (e.g. the PLCopen
+Coding Guidelines, or their own), on the same terms as below.
+
+Simulation-only code is out of scope: plant models, simulation harnesses, simulation-only stub
+`.st` files, test-only fault switches. It runs only on the PC and calls the CppModel SDK. Apply a
+standard there only if the user asks.
 
 ## 1. Check the stored choice
 

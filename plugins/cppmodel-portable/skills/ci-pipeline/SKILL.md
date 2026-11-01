@@ -186,6 +186,13 @@ add an explicit `git submodule update --init --recursive` step, with any private
 key added via Repository Settings > SSH keys (or as a secured variable written to `~/.ssh` in the
 step, matching the pattern of an existing Bitbucket pipeline if step 1 found one).
 
+From SDK 0.15.0 each run records the commit it ran from as `CppModel.GitHash`, which tells CI runs
+from local ones of the same commit. That needs `git` in the job and a checkout git will read: in a
+container job (a GitHub/Gitea `container:`, GitLab, Bitbucket) the checkout often belongs to
+another user and git refuses it, so add `git config --global --add safe.directory "$PWD"` (the
+checkout directory) before the tests. A shallow checkout is fine. Without it the runs still pass,
+just without a git hash.
+
 **Toolchain + dependency fetch**: install the compiler and build tools the chosen platform needs
 (`apt-get install build-essential cmake ninja-build` or `clang` on Linux/Bitbucket's image, nothing
 or `brew install ninja` on macOS, where Xcode's Apple Clang is preinstalled; the Visual Studio that

@@ -29,6 +29,10 @@ it must match whatever language that production code already uses - almost alway
 projects whose simulations are C++ - not this preference. Simulation-only code (models,
 simulation harness files) never ships to the target, so it's free to differ.
 
+A controller in Structured Text (`.st` files, run by the SDK's VirtualPLC) stays Structured Text.
+This choice is still made for its harness and plant model, which are C or C++; with no existing
+convention, C is enough for those, as in the SDK's `virtualplc-example`.
+
 ## 1. Check for a stored preference
 
 Look for `.claude/cppmodel.local.json` at the project root:

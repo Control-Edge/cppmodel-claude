@@ -8,8 +8,8 @@ A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
   about its sensors, actuators, and timing/velocity first) and scaffold a starter simulation file.
 - **`cppmodel:simulation-testing`** - write, extend, build, run, and debug a CppModel-based
   simulation test, in either C or C++ (whichever the project already uses, or is chosen via
-  `cppmodel:language`), including using the API trace to pinpoint why a test failed instead of
-  guessing from stdout.
+  `cppmodel:language`), or of a PLC controller in Structured Text run by the SDK's VirtualPLC,
+  including using the API trace to pinpoint why a test failed instead of guessing from stdout.
 - **`cppmodel:simulations`** - query the Workspace API through the plugin's `cppmodel` MCP server
   (`mcp.cppmodel.com`): list your simulations, fetch a simulation's latest results, list its
   execution history, fetch one past execution, see what changed between two executions (code,

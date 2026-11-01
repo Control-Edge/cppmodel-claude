@@ -163,13 +163,14 @@ Parameters:
   `CMODEL_SIMULATE(...)`/`CppModel_create(...)`, which take milliseconds. Keep them as recorded.
   Don't use them to change the run length unless a run confirms the binary honours them: check
   that the recorded time axis actually changed.
-- `CppModel.BinaryFingerprint`, copied along with a record's parameters, is left out by
-  `set_inputs` with a warning: each binary records its own. That warning is expected.
+- `CppModel.BinaryFingerprint` and `CppModel.GitHash` (SDK 0.15.0+, the one string), copied
+  along with a record's parameters, are left out by `set_inputs` with a warning: each run records
+  its own. That warning is expected.
 
 Check the document before posting:
 
 - every input has `label`, `x`, and `y`, with equal lengths and `x` strictly ascending from `0`
-- every parameter value is a number
+- every parameter value is a number (a copied `CppModel.GitHash` is dropped, see above)
 - names match step 1 exactly
 
 Then call `set_inputs` with `dry_run: true`. A broken document comes back as an error listing

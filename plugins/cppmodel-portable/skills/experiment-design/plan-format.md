@@ -106,7 +106,8 @@ or corrected has `source: "user"`. `confidence` is `high`, `medium`, or `low`.
 
 **`model`**: what the predictions were computed with. `binaryFingerprint` is the planned binary's
 `CppModel.BinaryFingerprint` (SDK 0.7.0+), `null` with an older SDK. `gitCommit`/`gitDirty` are
-always recorded. Reconciliation compares only against
+always recorded, from the runs' `CppModel.GitHash` when they have one (SDK 0.15.0+). For a
+VirtualPLC simulation they identify the Structured Text, which the fingerprint doesn't cover. Reconciliation compares only against
 predictions from this exact model; a refined model means new predictions.
 
 **`channels`**: every signal compared between simulation and field, defined once and referred to

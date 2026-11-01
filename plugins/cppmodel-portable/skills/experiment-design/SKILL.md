@@ -187,8 +187,11 @@ environment of its one command only, as `cppmodel:simulation-testing`'s "Build a
    regenerating it.
 3. **Record the model version.** Copy the binary's `CppModel.BinaryFingerprint` (SDK 0.7.0+; the
    sweep's `fingerprint`) into the plan, together with the git commit and whether the tree
-   was dirty. With an older SDK there's no fingerprint: tell the user the predictions are tied to
-   the model only by the commit.
+   was dirty: from SDK 0.15.0 take both from the runs' `CppModel.GitHash` (`<commit>` or
+   `<commit>-dirty`). With an older SDK there's no fingerprint: tell the user the predictions are
+   tied to the model only by the commit. For a VirtualPLC simulation the fingerprint doesn't cover
+   the Structured Text, so the commit is what ties the controller to the predictions: plan from a
+   clean tree.
 4. **Copy each prediction into the plan.** From each run's execution record, take every logged
    channel's series, resample it with hold-last-value onto that channel's planned log rate, and
    store it in the run's `prediction`, with its index (or execution id). See

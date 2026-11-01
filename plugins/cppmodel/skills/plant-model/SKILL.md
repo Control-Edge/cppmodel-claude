@@ -26,6 +26,10 @@ controller reads back. Which of these become the simulation's inputs depends on 
   no plant inputs/outputs of its own: the cross-linked ones are the controller's outputs/inputs.
   It publishes only the plant signals the controller doesn't observe (e.g. the true position when
   the controller sees only a limit switch).
+- **A controller in Structured Text** (PLC code, SDK 0.15.0+) is wired the same way through the
+  library's VirtualPLC: each controller input read with `getInput` is written to the PLC's variable,
+  the PLC is cycled, and its outputs drive the `actuators` (`cppmodel:simulation-testing`,
+  "Controller in Structured Text"). The model itself doesn't change.
 - **A plant-alone simulation** (no controller, e.g. to check the model's timing by itself) is the
   only case where the inputs are the plant's: its `actuators` read with `CppModel_getInput*`, its
   `sensors` published with `CppModel_setOutput*`. Build one only if the user asks for it.

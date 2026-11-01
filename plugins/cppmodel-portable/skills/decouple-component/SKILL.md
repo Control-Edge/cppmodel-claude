@@ -56,6 +56,12 @@ signals from other units), and a posted value overrides either. Its `status`/`ou
 the plant model's `actuators` directly in code and are published as outputs. Plant actuator
 commands are never inputs. Without a plant model, every one of its inputs comes from the document.
 
+A controller written as PLC code in IEC 61131-3 Structured Text needs no decoupling into C: from
+SDK 0.15.0 the library's VirtualPLC runs the `.st` files in the simulation as they are (see
+`cppmodel:simulation-testing`, "Controller in Structured Text"). What may need stubbing there is a
+vendor library block it calls (I/O, motion, communication), as a simulation-only `.st` file, not
+the controller itself.
+
 ## Diagnose first
 
 Before touching anything, ask once whether the customer has a description of what the controller

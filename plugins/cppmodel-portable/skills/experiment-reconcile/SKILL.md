@@ -46,7 +46,9 @@ Show what you inferred and let the user correct it (step 5).
   nothing without asking).
 - **The model version.** Rebuild the planned simulation's binary and compare its
   `CppModel.BinaryFingerprint` (printed by the rebuilt binary when it runs, from SDK 0.7.2, or
-  recorded in the parameters of a run of it) or git commit with the plan's `model`. If they differ, the model has changed since the plan was
+  recorded in the parameters of a run of it) and git commit (`CppModel.GitHash`, SDK 0.15.0+) with
+  the plan's `model`; for a VirtualPLC simulation only the commit shows a change to its Structured
+  Text. If they differ, the model has changed since the plan was
   issued. Comparisons in step 4 still go against the plan's model, because that was the hypothesis
   the field session tested: check out or keep a build of that version for the as-run simulations,
   and tell the user. The planned predictions themselves are never regenerated: fetch them with

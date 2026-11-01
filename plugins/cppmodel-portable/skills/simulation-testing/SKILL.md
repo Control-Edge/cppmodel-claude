@@ -1,6 +1,6 @@
 ---
 name: simulation-testing
-description: "Write, extend, or debug a CppModel-based simulation test, in C (the SDK's CModel.h API - CppModel_* functions and its CMODEL_CYCLIC/CMODEL_SIMULATE macros - directly or via a project's own helpers) or C++ (cppmodel::Simulation from cppmodel.hpp, CppModelBase::Simulation in older code, directly or via a project's own wrapper class). Use when asked to add test coverage to a CppModel simulation, to test a case that needs different logic or flow than an existing simulation (as another simulation; a case that only needs other inputs/parameters uses cppmodel:simulation-inputs, with no new file), when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data."
+description: "Write, extend, or debug a CppModel-based simulation test, in C (the SDK's CModel.h API - CppModel_* functions and its CMODEL_CYCLIC/CMODEL_SIMULATE macros - directly or via a project's own helpers) or C++ (cppmodel::Simulation from cppmodel.hpp, CppModelBase::Simulation in older code, directly or via a project's own wrapper class), including a PLC controller in IEC 61131-3 Structured Text run by the SDK's VirtualPLC (SDK 0.15.0+). Use when asked to add test coverage to a CppModel simulation, to test a case that needs different logic or flow than an existing simulation (as another simulation; a case that only needs other inputs/parameters uses cppmodel:simulation-inputs, with no new file), when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data."
 ---
 
 ## Reading notes
@@ -237,6 +237,51 @@ value, then `CppModel_destroy(sim)`. Either way, cross the boundary with
 (from SDK 0.8), so an integer type round-trips exactly up to 2^53. A failing call prints
 `CppModel: <function>(<name>) failed: ...` on stderr and returns the fallback.
 
+### Controller in Structured Text (VirtualPLC, SDK 0.15.0+)
+
+When the controller under test is PLC code in IEC 61131-3 Structured Text (`.st` files), the
+library's VirtualPLC interprets it inside the simulation: no PLC runtime, no other tool, nothing to
+port to C. The harness and plant model are C or C++ as above (`cppmodel:language`); the `.st` files
+are the real code under test and stay as they are. An older SDK has no VirtualPLC: offer
+`cppmodel:update-dependencies`. The SDK's `share/cppmodel/virtualplc-example/` (a C tank with a
+Structured Text fill controller, `find_package(cppmodel 0.15)`) is a complete one.
+
+- **Load once, then cycle.** C: `#include <VirtualPlc.h>`, `VirtualPlc_open("Controller.st")` on
+  the first cycle (NULL after an error, which it prints with the `.st` file and line; set
+  `CppModel.StepResult` to 0 then), `VirtualPlc_load` per file with `VirtualPlc_create`/`_start`
+  for several. C++: `#include <VirtualPlc.hpp>`, `cppmodel::VirtualPlc plc{{"A.st", "B.st"}};`,
+  which throws `cppmodel::Error`.
+- **Each cycle,** in the order of "Which side is being simulated": evaluate the plant, read each
+  controller input with `getInput` (the plant's value as fallback) and write it to the PLC with
+  `VirtualPlc_set(plc, "Main.Start", v)` / `plc.Set(...)`, run `VirtualPlc_cycle(plc,
+  currentTime_ms)` / `plc.Cycle(...)` (the tasks due at that time), read the outputs with
+  `VirtualPlc_get` / `plc.Get` into the plant's actuators, then publish.
+- **Variables by path:** `"Main.Motor"` for a variable of program instance `Main`, `"Pump"` for a
+  global (`AT %I`/`%Q` globals are the PLC's I/O), `"Main.Levels[2]"`, `"Main.Axis.Position"`.
+  Values are doubles (BOOL 0/1, TIME ms, an enum its value); strings via
+  `VirtualPlc_getString`/`setString` (`GetString`/`SetString`). Names are case-insensitive.
+  `VirtualPlc_variableCount`/`VirtualPlc_variable` (`plc.Variables()`) list them with their
+  section (input, output, local, global): use that to find the interface instead of guessing. Use
+  the PLC's own variable names as the simulation's input/output names.
+- **Tasks** come from the sources' `CONFIGURATION`/`TASK` (intervals, priorities). Without one,
+  every `PROGRAM` runs as an instance of its own name on each cycle. A task runs at most once per
+  cycle, at the first one on or after it's due: a step longer than a task's interval runs it less
+  often than the PLC would, and one that doesn't divide the interval runs it late. Make the
+  simulation's step size the fastest task's interval or a divisor of it.
+- **Language support:** `VirtualPlc.hpp`'s header comment lists exactly what's supported. Not
+  supported: `POINTER TO`, `REFERENCE TO`/`REF_TO`, `EXTENDS`, `INTERFACE`, `PROPERTY`, `SUPER`,
+  bit access (`x.3`), `DATE`/`TIME_OF_DAY`/`DATE_AND_TIME`, `CHAR`, `NAMESPACE`. Check the
+  controller against it before writing the harness. Vendor library blocks (e.g. a CODESYS or
+  TwinCAT library's I/O or motion blocks) aren't there either: load a simulation-only `.st` file
+  with stub `FUNCTION_BLOCK`s of the same name and interface, kept apart from the production
+  sources, and say which ones are stubbed.
+- **Finding the files:** the binary opens the `.st` paths at run time, so a relative path depends
+  on the working directory. Pass an absolute path from CMake, as the example does
+  (`target_compile_definitions(<target> PRIVATE CONTROLLER_ST="${CMAKE_CURRENT_SOURCE_DIR}/Controller.st")`).
+- **Errors:** a syntax error, or a fault while running (division by zero, ...), is reported with
+  the `.st` file and line (`CM_ERROR_PROGRAM`). It's a bug in the controller or an unsupported
+  construct, not in the harness.
+
 ### Either way
 
 The simulation still needs a step schedule chaining the steps of its behaviour in one file, using
@@ -334,6 +379,10 @@ set -a && source .env && set +a && ./build/<path-to>/<SimulationName>
 ```
 
 (With a Visual Studio generator the binary is under `build/<Config>/`.)
+
+A VirtualPLC simulation reads its `.st` files at start, so a change to the Structured Text alone
+needs no rebuild: rerun the binary. Its `CppModel.BinaryFingerprint` stays the same, so tell such
+runs apart by `CppModel.GitHash` (SDK 0.15.0+, `-dirty` while uncommitted), not by fingerprint.
 
 Exit code 0 means every cycle's `StepResult` was 1. Nonzero means at least one cycle failed, but
 the binary itself gives no detail about which one - it only prints a `UI:` line, its

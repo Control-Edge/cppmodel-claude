@@ -31,7 +31,9 @@ for authoring inputs) first; they apply to every run here. In short:
 - Every execution **records the inputs and parameters it actually read**.
 - Every execution records the binary's **`CppModel.BinaryFingerprint`**, and the server numbers a
   build's runs by it: run i of an unchanged binary is index (runs before the batch) + i (see
-  `cppmodel:simulations`' "Runs of one build").
+  `cppmodel:simulations`' "Runs of one build"). A VirtualPLC simulation (SDK 0.15.0+) loads its
+  Structured Text at start, outside the fingerprint, so leave its `.st` files untouched until the
+  sweep is done; each run's `CppModel.GitHash` shows whether they were (`-dirty`).
 
 So a sweep is sequential, and needs nothing built besides the simulation. For each run, the binary
 runs with that run's document and submits its execution:
@@ -140,8 +142,8 @@ user. It holds:
   and the varied values. Step 5 adds `fingerprint`, `start`, and each run's `exitCode`, `log` and
   printed `Execution:` id.
 
-Copied `CppModel.BinaryFingerprint` parameters can stay in the documents: `set_inputs` drops them
-with a warning, and the `expected` check skips `CppModel.` names.
+Copied `CppModel.BinaryFingerprint` and `CppModel.GitHash` parameters can stay in the documents:
+`set_inputs` drops them with a warning, and the `expected` check skips `CppModel.` names.
 
 Then call `set_inputs` with `dry_run: true` on one document that contains every varied name. Treat
 every `unrecognizedNames` entry as a typo until the source proves otherwise, and fix it in every
