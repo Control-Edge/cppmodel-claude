@@ -1,6 +1,6 @@
 ---
 name: cppmodel:documentation
-description: Write or update a concise Markdown document describing a CppModel plant model and the controller it exercises - signal interface, plant behaviour as per-cycle update laws (TeX math), parameters and timing, the controller's states and transitions, the closed loop, the simplifications made and why, and how it is validated. Starts as a draft from the user's own initial description before any code exists, stays untouched while the solution changes, and is reshaped to match the code once the plant and controller are settled. Use when asked to document a plant model, a controller, or a simulation, at the start of cppmodel:plant-model or cppmodel:decouple-component (to collect the initial description), and when a solution is settled or a refinement is promoted.
+description: Write or update a concise Markdown document describing a CppModel plant model and the controller it exercises - signal interface, plant behaviour as per-cycle update laws (TeX math), parameters and timing, the controller's states and transitions, the closed loop, the simplifications made and why, and how it is validated. Optionally publishes it to the CppModel workspace's documentation (w##### workspaces), where everyone in the workspace can read it. Starts as a draft from the user's own initial description before any code exists, stays untouched while the solution changes, and is reshaped to match the code once the plant and controller are settled. Use when asked to document a plant model, a controller, or a simulation, at the start of cppmodel:plant-model or cppmodel:decouple-component (to collect the initial description), when a solution is settled or a refinement is promoted, and when asked to publish, list, read or delete the workspace's documentation.
 ---
 
 ## Lifecycle: draft first, final at the end
@@ -171,9 +171,55 @@ carries through as real LaTeX. Mermaid needs a filter such as `mermaid-filter`. 
 mention that the diagrams won't appear. Don't install a TeX distribution without asking, because
 it is large.
 
+## Publishing to the workspace
+
+A licensed (`w#####`) workspace can host documentation: per documentation project, one set of
+Markdown pages plus images (PNG, JPEG, GIF, SVG, WebP), PDFs, text, CSV and JSON (at most 5000
+files and 300 MB), readable by
+everyone in the workspace. Free-workspace accounts get `403`; then the document stays in the
+repository only. The `cppmodel` MCP server's tools (see `cppmodel:simulations` for the account
+check before the first call):
+
+| Tool | Use |
+|------|-----|
+| `list_docs` | the workspace's documentation projects, with site name, who uploaded when, and `siteUrl` |
+| `get_docs` | a project's manifest (site name, `nav`, files with sizes and page titles), or with `file` one file: Markdown/text as `text`, an image to look at |
+| `upload_docs` | publish `files` (`[{path, text}]`, or `{path, base64}` for an image or PDF), optional `site_name` and `nav`; with `merge: true` keep the rest (and `remove` some) |
+| `delete_docs` | IRREVERSIBLE: the project's whole set, for everyone |
+
+- **Only when the user asks to publish.** The repository copy is the source; the workspace copy is
+  a published snapshot of it. Never publish a draft unless the user asks for that explicitly, and
+  don't re-publish on every edit: offer once, when the final version or an update is done. Don't
+  offer at all on a free workspace.
+- **Read before writing.** Call `list_docs`, and `get_docs` for the project you'll write to, to
+  see what's already there and who uploaded it. Pick the project name with the user (1-64 letters,
+  digits, `.`, `_` or `-`); the repository's or product's name is a good default.
+- **Without `merge`, an upload replaces the whole set**: files left out are deleted. When the
+  project holds more than this one document (several models, other people's pages), upload with
+  `merge: true` and only the files that changed, and `remove` only files you put there. A full
+  replace is right only when the upload is the complete set, such as the repository's whole `docs/`
+  folder.
+- **Upload the files as they are in the repository**, with their relative paths, and every image
+  the pages link to. Relative links between pages and to images keep working; links to source
+  files outside the uploaded set (`../models/ConveyorModel.c`) don't, so leave them as they are.
+  Anything other than the types above comes back in `skipped`: tell the user.
+- **Navigation**: without `nav`, it follows the folder tree (`index.md` first, titles from each
+  page's first `#` heading), and a merge keeps the current one and appends new pages. Pass `nav`
+  (`[{title, path | url | children}]`, as `get_docs` shows it) only when the user wants an order of
+  their own.
+- **Rendering**: the viewer renders navigation, admonitions, tables, highlighted code and TeX math.
+  Mermaid isn't among them, so check with the user whether diagrams showing as source is
+  acceptable there.
+- **`siteUrl` is temporary**, and a browser opens it only as `<siteUrl>?access_token=<token>`. Give
+  the user `siteUrl` and say it needs their token; never append a token to it yourself, and never
+  put `siteUrl` into anything meant to last (the document itself, a README, a commit).
+- **`delete_docs` can't be undone** and removes the set for everyone: only when the user explicitly
+  asks, after saying what will be lost.
+
 ## Finish
 
 Tell the user where the document is, whether it is still a draft, and which sections were left as
-open questions. If it was an update, say which sections changed. Mention, in one line, that any
+open questions. If it was an update, say which sections changed. If it was published, give the project name,
+the files uploaded and any `skipped`, and `siteUrl`. Mention, in one line, that any
 part can be expanded if they want more detail. Expand only the part they ask about, and keep the
 rest short.

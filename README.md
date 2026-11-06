@@ -14,8 +14,9 @@ A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
   (`mcp.cppmodel.com`): list your simulations, fetch a simulation's latest results, list its
   execution history, fetch one past execution, see what changed between two executions (code,
   parameters, signals), or fetch all the runs of one build (e.g. a whole sweep) by its
-  `CppModel.BinaryFingerprint`. Lists can be sorted by latest run or execution count, to find
-  recent work. Chosen signals of one execution can be exported as a chart the agent looks at, or
+  `CppModel.BinaryFingerprint`. Lists can be sorted by latest run, latest run from a clean commit,
+  or execution count, to find recent work, or cut to the simulations whose latest run was (or
+  wasn't) from committed code. Chosen signals of one execution can be exported as a chart the agent looks at, or
   as a CSV, with a snapshot link (valid for 7 days) so you see the same chart. Results come with
   links into the workspace web UI.
 - **`cppmodel:simulation-inputs`** - run a simulation with specific inputs (time series) and
@@ -58,7 +59,8 @@ A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
   validation results from the workspace. It starts as a draft from your own initial description,
   is left alone while the solution changes, and is reshaped to match the code once the plant and
   controller are settled. More detail only on request. Answer "never" and it is stored in
-  `.claude/cppmodel.local.json`.
+  `.claude/cppmodel.local.json`. On request it publishes the document to a licensed workspace's
+  documentation (`upload_docs`), where everyone in the workspace can read it.
 - **`cppmodel:language`** - decides C vs C++ for a new plant model or simulation file: checks a
   stored per-project preference (`.claude/cppmodel.local.json`) first, otherwise detects the
   project's existing convention or asks, and can remember the answer so it isn't asked again. Used

@@ -1,6 +1,6 @@
 ---
 name: simulations
-description: "Query CppModel Workspace API results - list simulations (by name, or sorted by latest run or execution count), fetch the latest results for one, list its execution history, see what changed between two executions (code, parameters, signals), or compare executions with each other, with links into the workspace web UI. Exports chosen signals of one execution as a chart image to look at, or as a CSV, with a link for the user. Every simulation run is submitted to the workspace, and its execution history is how runs are compared. Use when asked about CppModel simulation results, executions, how a run compares with an earlier one or what changed since it, the Workspace API, \"show me / plot / chart the signals\", \"look at the trace\", \"what did I run last\", or a pasted `/snapshots/` link, in a project that uses the CppModel libraries."
+description: "Query CppModel Workspace API results - list simulations (by name, or sorted by latest run, latest run from a clean commit, or execution count; or only those whose latest run was, or wasn't, from committed code), fetch the latest results for one, list its execution history, see what changed between two executions (code, parameters, signals), or compare executions with each other, with links into the workspace web UI. Exports chosen signals of one execution as a chart image to look at, or as a CSV, with a link for the user. Every simulation run is submitted to the workspace, and its execution history is how runs are compared. Use when asked about CppModel simulation results, executions, how a run compares with an earlier one or what changed since it, the Workspace API, \"show me / plot / chart the signals\", \"look at the trace\", \"what did I run last\", \"what isn't committed yet\", or a pasted `/snapshots/` link, in a project that uses the CppModel libraries."
 ---
 
 ## Reading notes
@@ -38,7 +38,7 @@ an ad-hoc program instead, and never search the project for result files in thei
 
 | Tool | Use |
 |------|-----|
-| `list_simulations` | list simulations with execution counts and `lastExecutionAt` (`scope: "team"` for the whole team; `sort` by `name`, `executions` or `lastExecution`; `order`) |
+| `list_simulations` | list simulations with execution counts, `lastExecutionAt` and its `gitHash`, and the newest run from a clean commit (`lastCommittedExecutionAt`, `lastCommittedGitHash`) (`scope: "team"` for the whole team; `sort` by `name`, `executions`, `lastExecution` or `lastCommittedExecution`; `order`; `tracking`: `committed`/`uncommitted`, see "Committed and uncommitted runs") |
 | `get_latest_result` | the latest execution: inputs, parameters, results |
 | `list_executions` | execution history, newest first, with id, time, status (up to 1000 per page) |
 | `get_execution` | one past execution by id, same shape as `get_latest_result` |
@@ -50,6 +50,7 @@ an ad-hoc program instead, and never search the project for result files in thei
 | `set_inputs` | post this account's next execution's inputs/parameters (see below) |
 | `submit_execution` | record an execution no binary ran, such as measured data (see below) |
 | `delete_simulation` | IRREVERSIBLE (see below) |
+| `list_docs`, `get_docs`, `upload_docs`, `delete_docs` | the workspace's published documentation (w##### workspaces only); see `cppmodel:documentation`, "Publishing to the workspace" |
 | `get_workspace` | which workspace the server is connected to, with UI and API URLs |
 | `get_api_version` | the Workspace API version |
 
@@ -123,6 +124,23 @@ From SDK 0.15.0, a run whose executable is inside a git repository also records
 tracked file had uncommitted changes; untracked build output doesn't count), and prints it next to
 the fingerprint. It's the only parameter that is a string, and it's missing outside a repository
 or without git. It tells a local run from a CI run of the same commit at a glance.
+
+### Committed and uncommitted runs
+
+A simulation's newest execution is **committed** when its `CppModel.GitHash` has no `-dirty`: it
+ran from a clean checkout of that commit. One with `-dirty`, or with no git hash at all, is
+uncommitted. `list_simulations` reports, per simulation, `gitHash` (its newest execution's, `null`
+without one) and `lastCommittedExecutionAt`/`lastCommittedGitHash` (its newest execution from a
+clean commit). It can:
+
+- keep only the simulations whose newest run was committed (`tracking: "committed"`) or not
+  (`tracking: "uncommitted"`), e.g. for "what am I working on that isn't committed yet" or "which
+  simulations still need a run from a clean commit (or CI)";
+- sort by the newest committed run (`sort: "lastCommittedExecution"`), e.g. for "what did CI run
+  last".
+
+Simulations from SDKs before 0.15.0, or run outside a git repository, have no git hash and count
+as uncommitted.
 
 A **VirtualPLC** simulation (SDK 0.15.0+, a controller in Structured Text, see
 `cppmodel:simulation-testing`) loads its `.st` files when it starts, so the fingerprint covers the
@@ -282,7 +300,7 @@ by id later. So:
   history first. Run again only when no execution covers it (different code, inputs, or
   parameters). For "what did I run last" or "the simulation I was working on", call
   `list_simulations` with `sort: "lastExecution"` (newest first) instead of paging through every
-  name. `lastExecutionAt` is UTC, and `null` for a simulation whose latest execution was stored
+  name; for work not yet committed, add `tracking: "uncommitted"`. `lastExecutionAt` is UTC, and `null` for a simulation whose latest execution was stored
   before the server recorded the time.
 - **Keep simulation names stable.** The history is per name. A renamed simulation starts with an
   empty history and can't be compared with the old one by id, so rename only on purpose and say
