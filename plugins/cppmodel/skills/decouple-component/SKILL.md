@@ -50,9 +50,9 @@ the controller itself.
 ## Diagnose first
 
 Before touching anything, ask once whether the customer has a description of what the controller
-should do, such as a spec, a requirements list, or a state chart. If a document for it already
-exists, read it instead. Keep their description as the draft (`cppmodel:documentation`,
-"Lifecycle"). It also helps tell decision logic from glue in question 2 below. A requirements list
+should do, such as a spec, a requirements list, or a state chart. If documentation for it already
+exists, read it instead. Keep their description as the draft functional description of the system
+functions this controller implements (`cppmodel:documentation`, "Lifecycle"). It also helps tell decision logic from glue in question 2 below. A requirements list
 with IDs later becomes the simulation's verification rules (`cppmodel:verification`).
 
 The extracted module is controller code that ships to the target. Before writing it, follow

@@ -415,8 +415,10 @@ Do this when the simulation is created, not after - an unregistered simulation c
 even run manually indefinitely without ever actually gating anything.
 
 When a **new** simulation passes and the user isn't still changing the plant or controller, offer,
-in one line, to finalize their documentation with `cppmodel:documentation`. That means reshaping
-the draft to match the code, or writing the document if there is no draft. Don't offer it after
+in one line, to finalize their documentation with `cppmodel:documentation`: functional
+descriptions of the system functions the simulation exercises, with figures and links from its
+committed runs, and the plant as their supporting description. That means reshaping the draft to
+match the code, or writing it if there is no draft. Don't offer it after
 debugging or tuning. Those changes don't need documentation until the solution is settled.
 
 ## Debugging a failure: query the real trace, don't guess

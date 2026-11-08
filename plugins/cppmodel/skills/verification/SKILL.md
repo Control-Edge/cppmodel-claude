@@ -229,5 +229,5 @@ In CI, `cppmodel:ci-pipeline` can keep the file as a build artifact.
 
 - When the controller code itself changes to meet a requirement, follow `cppmodel:coding-standard`
   for that code.
-- Once the solution is settled, `cppmodel:documentation`'s Validation section lists the
-  requirements and the rules that verify them.
+- Once the solution is settled, each function's Evidence section in `cppmodel:documentation`
+  lists the requirements and the rules that verify them, with their latest margins.

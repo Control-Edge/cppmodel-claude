@@ -53,12 +53,16 @@ A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
   copy of the rules (a path to your PDF or rule-texts file), never from general knowledge. It never
   copies the rule texts anywhere, runs your checker if the project has one, and remembers the
   choice in `.claude/cppmodel.local.json`.
-- **`cppmodel:documentation`** - a short Markdown document (one to two screens) for a plant model
-  and its controller: interface table, per-cycle update laws in TeX math (`$...$`/`$$...$$`),
-  parameters, the controller's state machine (Mermaid), the simplifications made and why, and
-  validation results from the workspace. It starts as a draft from your own initial description,
-  is left alone while the solution changes, and is reshaped to match the code once the plant and
-  controller are settled. More detail only on request. Answer "never" and it is stored in
+- **`cppmodel:documentation`** - short functional descriptions of the system's control functions
+  (one to two screens each): purpose, activation, interface, behaviour as a state machine (Mermaid)
+  or a control law (TeX math), performance and limits, faults and interlocks, and what each relies
+  on from the plant. The plant model is documented in support of them: update laws, parameters,
+  and the simplifications made, why, and which functions they affect. Evidence comes from the
+  workspace: signal charts exported from specific committed executions, links to those
+  executions, their verification outcomes, and permalinks to the exact commit and source lines
+  they ran. It starts as a draft from your own initial description, is left alone while the
+  solution changes, and is reshaped to match the code once the plant and controller are settled.
+  It offers, once, to derive a requirement set from the descriptions. More detail only on request. Answer "never" and it is stored in
   `.claude/cppmodel.local.json`. On request it publishes the document to a licensed workspace's
   documentation (`upload_docs`), where everyone in the workspace can read it.
 - **`cppmodel:language`** - decides C vs C++ for a new plant model or simulation file: checks a
@@ -160,7 +164,7 @@ one from your login automatically, and every skill works the same with either.
 - `plugins/cppmodel/skills/simulation-testing/SKILL.md` - the write/debug-tests skill
 - `plugins/cppmodel/skills/simulations/SKILL.md` - the query skill
 - `plugins/cppmodel/skills/language/SKILL.md` - the C vs C++ decision skill
-- `plugins/cppmodel/skills/documentation/SKILL.md` - the plant/controller documentation skill
+- `plugins/cppmodel/skills/documentation/SKILL.md` - the functional-description documentation skill
 - `plugins/cppmodel/skills/update-dependencies/SKILL.md` - the SDK update skill
 - `plugins/cppmodel/skills/ci-pipeline/SKILL.md` - the CI pipeline skill (GitHub Actions, GitLab
   CI, Bitbucket Pipelines, Gitea Actions)

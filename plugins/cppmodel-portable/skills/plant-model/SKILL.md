@@ -78,9 +78,10 @@ answer.
 ## Questions to ask first
 
 Before asking anything, ask once whether the customer already has a description of the machine,
-such as a spec, a datasheet, notes, or a few sentences. If a document for this mechanism already
-exists, read it instead. Save their description as the draft document (`cppmodel:documentation`,
-"Lifecycle"). Then don't re-ask what it already answers clearly, but do push on anything vague in
+such as a spec, a datasheet, notes, or a few sentences, and of what the control system must do
+with it (its functions, limits, fault reactions). If documentation for this system already exists,
+read it instead. Save their description as the draft (`cppmodel:documentation`, "Lifecycle"):
+the functional descriptions of the system functions, with this plant as their supporting model. Then don't re-ask what it already answers clearly, but do push on anything vague in
 it, as with any other answer. If they have nothing written, skip the draft and go straight to the
 questions.
 

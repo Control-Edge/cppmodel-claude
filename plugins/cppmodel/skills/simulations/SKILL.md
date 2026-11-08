@@ -197,8 +197,11 @@ export_signals {simulation: "CPidSystemSim", format: "png",
   same chart you looked at. The page also offers PNG and CSV downloads. `executionUiUrl` is the
   execution's page.
 - **Exports are temporary.** They last 7 days (`expiresAt`), and stop working earlier if the
-  execution is deleted. Never put a snapshot link in anything meant to last: documentation, a
-  requirements-coverage file, a plan, a commit message. Link the execution's `uiUrl` there.
+  execution is deleted. In anything meant to last (documentation, a requirements-coverage file,
+  a plan, a commit message) link the execution's `uiUrl`. Documentation may also note a snapshot
+  link beside it, marked temporary with its `expiresAt` date, and keeps the chart itself as a PNG
+  file next to its pages: the export result names the PNG the client saved
+  (`[Image: source: <path>]`), so copy that file (`cppmodel:documentation`).
 - **One export covers one execution.** To compare two runs, give `what_changed`'s `uiUrl`, which
   overlays both, or make one export per run. Only an overlay across many runs, such as a sweep's
   key signal over all runs, needs a chart of your own (`dataviz`).
