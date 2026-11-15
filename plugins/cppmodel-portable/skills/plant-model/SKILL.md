@@ -18,6 +18,12 @@ description: "Build a minimal plant model (the simulated physical mechanism) for
 
 ---
 
+> **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
+> back from it (the `cppmodel` MCP server). Never work around it: no runs without submitting, no
+> parsing stdout or files for results, no analysis scripts in place of verification rules or
+> exports. If the workspace can't be reached, stop and fix the login with the user. See
+> `cppmodel:simulations`' "The workspace is part of the loop".
+
 ## Goal
 
 Build the minimal *logic* model of the real mechanism's physics - just enough behavior to drive

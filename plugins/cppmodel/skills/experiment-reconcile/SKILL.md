@@ -3,6 +3,12 @@ name: cppmodel:experiment-reconcile
 description: Reconcile field logs from a real machine with the experiment plan that produced them - find each planned run in the unannotated logs, infer what the operator actually did against what was asked (skipped, partial, different setpoints, extra manoeuvres), re-simulate what was actually done, and compare predicted vs actual on the same graphs, run by run, against the plan's tolerances. Then turn the gap into a minimal plant-model refinement on the planned path and test it against the same logs. Use when logs come back from a field session run with a cppmodel:experiment-design plan, when asked how the machine compared to the model's prediction, or when asked to refine a plant model from field data.
 ---
 
+> **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
+> back from it (the `cppmodel` MCP server). Never work around it: no runs without submitting, no
+> parsing stdout or files for results, no analysis scripts in place of verification rules or
+> exports. If the workspace can't be reached, stop and fix the login with the user. See
+> `cppmodel:simulations`' "The workspace is part of the loop".
+
 ## What this is
 
 The second half of the loop that `cppmodel:experiment-design` starts. Its inputs are an issued

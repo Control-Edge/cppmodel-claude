@@ -3,6 +3,12 @@ name: cppmodel:simulation-inputs
 description: Run a CppModel simulation with specific inputs (time series read by CppModel_getInput* / inputs["..."]) and parameters (constants read by CppModel_getParameter* / parameters["..."]) without editing or rebuilding it: passed to the binary with --inputs <file> (SDK 0.10.0+), or posted through the cppmodel MCP server's set_inputs right before a run with older SDKs. Finds the exact names the simulation reads, builds and validates the input document, runs the simulation with it (exploring locally first if useful), and confirms from the execution record that the values were really applied. Use when asked to run a simulation with given inputs/parameters or a named scenario, to try "what if <parameter> = X", to compare input profiles, or to see which inputs and parameters a simulation reads. For many runs over a range of values, use cppmodel:parameter-sweep instead. For a case needing its own logic (sequences, faults, its own checks), not just values, write a new simulation (cppmodel:simulation-testing).
 ---
 
+> **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
+> back from it (the `cppmodel` MCP server). Never work around it: no runs without submitting, no
+> parsing stdout or files for results, no analysis scripts in place of verification rules or
+> exports. If the workspace can't be reached, stop and fix the login with the user. See
+> `cppmodel:simulations`' "The workspace is part of the loop".
+
 ## What this is
 
 This runs an existing simulation with different *values*. Whenever a case can be expressed by
@@ -26,9 +32,8 @@ without that file, look for `CppModel_resetData` in `dependencies/include/cppmod
 which 0.6.1 added. If it's older, offer `cppmodel:update-dependencies` before going further.
 
 **From SDK 0.10.0, pass the document to the binary instead of posting it:** `<binary> --inputs
-<file>` reads it from the file and submits as usual, so no other run can consume it first. The
-same file with `--results <out.json>` added is a local run, which doesn't submit (see
-`cppmodel:simulations`' "Local runs"). With an older SDK, post the document with the `cppmodel`
+<file>` reads it from the file and submits as usual, so no other run can consume it first (see
+`cppmodel:simulations`' "Inputs from a file and exit codes"). With an older SDK, post the document with the `cppmodel`
 MCP server's `set_inputs` tool before the binary starts. Four facts, all confirmed against the live
 API, shape everything below. The first applies to posted documents only:
 
@@ -207,13 +212,12 @@ still consumes a document pending from `set_inputs` when it submits. Step 2 save
 there was one.
 
 **When the user wants to try several values first**, e.g. to find the one that meets a requirement,
-explore with local runs: the same command with `--results <scratch>/out-<n>.json` added, one
-document file per try. Take each try's pass/fail from the run's exit code and printed
-`CppModel.Verify` lines, open the results file only for a value or two (no analysis scripts; when a
-try needs more, record it and ask the workspace), change the document, and run again.
-Nothing reaches the workspace. When the values are settled, run the chosen file once more without
-`--results`. That recorded run is the result. Never report a local run's numbers as the
-scenario's outcome (`cppmodel:simulations`' "Local runs").
+run the same command once per try, one document file per try. Every try is a recorded run (there
+are no local runs: SDK 0.17.0 removed `--results`, and it isn't used with older SDKs either). Take
+a try's pass/fail from its exit code (SDK 0.17.0+) and printed `CppModel.Verify` lines, and
+anything more from its execution in the workspace (no analysis scripts). For many tries over a
+range, use `cppmodel:parameter-sweep`. Report the try whose values were settled on, by its
+execution id.
 
 ### Older SDKs: post, then run immediately
 
@@ -267,10 +271,10 @@ The result gets `applied` and `differences`:
 
 Once the values are confirmed, report:
 
-- pass/fail: whether `CppModel.StepResult` in `results` ever dropped to 0. The exit code is 0
-  for a pass and nonzero for a fail, but the nonzero value depends on the shell (255 on
-  Linux/macOS and in Git Bash, -1 or 4294967295 in PowerShell, 127 through Git Bash's `timeout`,
-  which is also "command not found"). Go by `StepResult`, not by the code.
+- pass/fail: whether `CppModel.StepResult` in `results` ever dropped to 0. From SDK 0.17.0 the
+  exit code is 0 for a pass and 1 for a fail. Before it, a fail's code was the failing step's
+  number cut to 8 bits by the shell (a failure at step 256 exited 0; 255, -1 or 4294967295 for one
+  outside a step), and 127 can mean "command not found". Go by `StepResult`, not by the code.
 - what the scenario showed in the outputs the user cares about; optionally a `png` export of
   those outputs (`export_signals`, see `cppmodel:simulations`' "Looking at signals") with its
   link. The link expires after 7 days, so the execution id and `uiUrl` stay the durable reference

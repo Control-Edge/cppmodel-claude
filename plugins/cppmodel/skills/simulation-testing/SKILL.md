@@ -3,6 +3,12 @@ name: cppmodel:simulation-testing
 description: Write, extend, or debug a CppModel-based simulation test, in C (the SDK's CModel.h API - CppModel_* functions and its CMODEL_CYCLIC/CMODEL_SIMULATE macros - directly or via a project's own helpers) or C++ (cppmodel::Simulation from cppmodel.hpp, CppModelBase::Simulation in older code, directly or via a project's own wrapper class), including a PLC controller in IEC 61131-3 Structured Text run by the SDK's VirtualPLC (SDK 0.15.0+). Use when asked to add test coverage to a CppModel simulation, to test a case that needs different logic or flow than an existing simulation (as another simulation; a case that only needs other inputs/parameters uses cppmodel:simulation-inputs, with no new file), when a simulation test fails and the reason isn't obvious from stdout, or when tightening timing-based assertions against real execution data.
 ---
 
+> **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
+> back from it (the `cppmodel` MCP server). Never work around it: no runs without submitting, no
+> parsing stdout or files for results, no analysis scripts in place of verification rules or
+> exports. If the workspace can't be reached, stop and fix the login with the user. See
+> `cppmodel:simulations`' "The workspace is part of the loop".
+
 ## Requirements: check credentials before running or debugging anything
 
 Running a simulation binary needs a CppModel account (free or licensed). The run belongs to the
@@ -185,7 +191,10 @@ releases before 0.6 used `double`). Use `inputs.GetSafe("name", fallback)` / `ou
 to cross the boundary, and always set `outputs["CppModel.StepResult"]`. Read parameters with
 `GetParameter("name", fallback)` (SDK 0.6.1+), which returns the posted value or else records and
 returns the fallback; `.get<double>()` etc. converts it. `main()` constructs the simulation object,
-calls `.Simulate()`, and returns `GetSimulationResult()`. The SDK's
+calls `.Simulate()`, and returns `GetSimulationResult() == 0 ? 0 : 1` (SDK 0.17.0+; older code
+returns `GetSimulationResult()`, whose step number shells cut to 8 bits, so a failure at step 256
+exited 0). There is no `GetResults()` (removed in 0.17.0): a run's record is read from the
+workspace, by the `Execution: <id>` it prints, never from inside the program. The SDK's
 `share/cppmodel/example/simulation.cpp` is a complete minimal one.
 
 From SDK 0.8 a few semantics are worth knowing when writing or debugging C++ simulations:
@@ -322,8 +331,10 @@ headers have; to move from one to the other, see `cppmodel:update-dependencies`.
   step continues to the end of the run. The step is found from the time, so an input profile
   needs no reset and can be reused anywhere.
 - **Step numbers:** running an input profile records the running step's number, counted from 1 across
-  the flattened schedule, as `CppModel.Step` and `CppModel.StepNumber`. A failed run's result and
-  exit code are the first failing step's number.
+  the flattened schedule, as `CppModel.Step` and `CppModel.StepNumber`. A failed run's result
+  (`GetSimulationResult()`, `CppModel_getSimulationResult()`) is the first failing step's number,
+  or -1 for a failure outside a numbered step. From SDK 0.17.0 the exit code is just 0 or 1; before
+  it, it was that number too.
 
 The SDK's `simulations/MotorStarterC.c` and `MotorStarterCpp.cpp` are complete examples of all
 three step kinds.
@@ -387,10 +398,11 @@ reach the workspace fails and prints a line starting with `CppModel workspace:` 
 0.9.1+; before it, `Running offline.`, and it could still pass). Such a run didn't count, so fix the
 cause (login, network) and rerun.
 
-The one exception is a local run (SDK 0.10.0+), `--inputs <file> --results <out.json>`, while
-iterating (see `cppmodel:simulations`' "Local runs"). Its `(not submitted)` is expected, and an
-iteration always ends with a recorded run. Never add `--results` to a `ctest` registration or a CI
-step.
+There are no exceptions and no local runs: SDK 0.17.0 removed `--results` (a run started with it
+fails), and with 0.10.0 to 0.16.x it isn't used either. Remove it from any `ctest` registration,
+script or CI step that still passes it. From 0.17.0 an execution over the workspace's 100 MB limit
+fails the run instead of being sent: record fewer signals, a coarser step or a shorter run, or
+split the simulation.
 
 A new simulation needs its target in the relevant `CMakeLists.txt` (SDK 0.8+; the project already
 has `find_package(cppmodel)`), registered with `ctest`:
@@ -425,7 +437,7 @@ debugging or tuning. Those changes don't need documentation until the solution i
 
 The binary's stdout gives nothing to work with beyond pass/fail and a `UI: https://...` link -
 there is no local log, file, or cache holding the per-cycle signal trace. It only exists behind the
-Workspace API, or, for a local run (SDK 0.10.0+), in the file its `--results` names. Use the `cppmodel` MCP server's `get_latest_result` (see `cppmodel:simulations`)
+Workspace API. Use the `cppmodel` MCP server's `get_latest_result` (see `cppmodel:simulations`)
 to get the execution trace, cut to what you need: every `CppModel_getInput` signal under `inputs`, every
 `CppModel_getParameter` under `parameters`, and every `CppModel_setOutput` signal (including
 `CppModel.StepResult` and the step number) under `results`, each series as `{label, x, y}`
@@ -452,8 +464,8 @@ Workflow:
    If an earlier run passed, `what_changed` between the two (`cppmodel:simulations`) says first
    whether the code, a parameter or the set of signals changed.
 2. For each failure, cross-reference the step number's transitions to identify which step
-   was running at that timestamp (with the SDK's steps, the run's exit code is already the first
-   failing step's number), and the local time within that step (absolute time minus the step's start
+   was running at that timestamp (with the SDK's steps, the run prints the first failing step's
+   number as its result; before SDK 0.17.0 that was also the exit code), and the local time within that step (absolute time minus the step's start
    time).
 3. Look at the other signals' values at that same timestamp to see what state the model/controller
    was actually in - usually enough to tell whether the assertion's logic is wrong, its timing is
@@ -467,11 +479,10 @@ Workflow:
    A fix to controller code (code that ships to the
    target) follows `cppmodel:coding-standard`.
 4. Fix, rebuild, rerun, re-fetch, and confirm the trace is clean end to end (`StepResult` never
-   dips to 0 anywhere) - not just that the process exit code was 0. With SDK 0.10.0+, tries in
-   between whose exit code and printed `CppModel.Verify` lines are enough can run without
-   submitting: add `--results <out.json>`, and don't read the trace from that file. A try whose
-   trace you need to look at is submitted, then exported (`export_signals` `png` for the shape,
-   `csv` for values), which costs far less than reading the file. Add `--inputs <file>` with the failing execution's `inputs` and `parameters` when it ran
+   dips to 0 anywhere) - not just that the process exit code was 0. Every try is a recorded run;
+   when its exit code and printed `CppModel.Verify` lines don't answer the question, export from
+   its execution (`export_signals` `png` for the shape, `csv` for values) rather than adding
+   logging or capturing stdout. Add `--inputs <file>` with the failing execution's `inputs` and `parameters` when it ran
    with values other than the fallbacks, leaving out plant-fed inputs in a closed loop (the
    recorded plant trace would override the plant), unless the failing run had them forced. Once a fix looks right, do one recorded run the way the
    failing one ran (plain, or with that `--inputs <file>`), and confirm the clean trace from that

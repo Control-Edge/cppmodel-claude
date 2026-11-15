@@ -3,6 +3,12 @@ name: cppmodel:plant-model
 description: Build a minimal plant model (the simulated physical mechanism) for a new CppModel simulation, and scaffold a starter simulation file wiring it to the controller under test. Use when a customer needs to simulate a new physical mechanism (actuator, motor, sensor pair) that has no model yet.
 ---
 
+> **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
+> back from it (the `cppmodel` MCP server). Never work around it: no runs without submitting, no
+> parsing stdout or files for results, no analysis scripts in place of verification rules or
+> exports. If the workspace can't be reached, stop and fix the login with the user. See
+> `cppmodel:simulations`' "The workspace is part of the loop".
+
 ## Goal
 
 Build the minimal *logic* model of the real mechanism's physics - just enough behavior to drive

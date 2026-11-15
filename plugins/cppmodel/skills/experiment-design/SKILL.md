@@ -3,6 +3,12 @@ name: cppmodel:experiment-design
 description: Design a field data-collection plan for a real machine - an experiment tailored to that machine and concentrated on the behaviour the plant model is least sure of, where every run carries the trace the current model predicts. The predictions come from a "planned" CppModel simulation kept apart from the production simulations until the plan proves realistic or the customer adopts it. Shows the AI's understanding of the machine and model, with predicted graphs, in a widget for the user to confirm or correct before anyone drives the machine. Use when a customer asks for a new simulation or plant model of a real machine, wants to tune or optimize a controller toward a goal on the real machine, reports that the simulation and the machine disagree, or wants to think through the process of collecting logs and converging the model.
 ---
 
+> **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
+> back from it (the `cppmodel` MCP server). Never work around it: no runs without submitting, no
+> parsing stdout or files for results, no analysis scripts in place of verification rules or
+> exports. If the workspace can't be reached, stop and fix the login with the user. See
+> `cppmodel:simulations`' "The workspace is part of the loop".
+
 ## What this is
 
 Controller work on a real machine bootstraps: a naive plant model, a controller built on it, then

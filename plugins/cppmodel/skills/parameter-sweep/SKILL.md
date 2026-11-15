@@ -3,6 +3,12 @@ name: cppmodel:parameter-sweep
 description: Run a CppModel simulation many times over a range of parameter values (a parameter sweep or sensitivity study; each parameter set is a restart, while input profiles are chained in time within each run), without editing or rebuilding the simulation - each run's inputs/parameters are passed to the binary with --inputs (SDK 0.10.0+) or posted through the cppmodel MCP server's set_inputs right before it executes, and the whole batch is verified afterwards from the execution records in one get_binary_runs call. Designs the sweep with the user, runs it, and reports which combinations pass or fail, where the pass/fail boundary lies, and the metrics the user cares about. Use when asked to sweep, vary, or tune a parameter, test robustness across parameter ranges, or find the limit at which a simulation starts failing. Cases that differ in logic rather than values are separate simulations (cppmodel:simulation-testing), not sweep variants.
 ---
 
+> **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
+> back from it (the `cppmodel` MCP server). Never work around it: no runs without submitting, no
+> parsing stdout or files for results, no analysis scripts in place of verification rules or
+> exports. If the workspace can't be reached, stop and fix the login with the user. See
+> `cppmodel:simulations`' "The workspace is part of the loop".
+
 ## How a sweep works
 
 A sweep varies the values of one behaviour the simulation already describes. Cases that differ in
@@ -106,14 +112,10 @@ Agree on:
   entry to the simulation's execution history, and costs a few API calls, which are rate-limited.
   Past roughly 50 runs, propose a coarse sweep first and then a refined one around the interesting
   region. Get the user's OK on the final run count.
-- **Whether a coarse pass runs locally** (SDK 0.10.0+). A coarse pass that only locates the
-  interesting region can run as local runs: the step-5 command with `--results
-  <out>/local/NNN.json` added. It adds nothing to the history and needs no API calls besides the
-  token. Take each run's pass/fail from its exit code (0 or not) and printed `CppModel.Verify`
-  lines, opening a results file only for a value or two, not with an analysis script. Its pass/fail map is a guide for designing the
-  refined sweep and is never reported as the outcome. The sweep the user gets results from is
-  always recorded (`cppmodel:simulations`' "Local runs"). Offer this only for a pass that is
-  exploratory by design, and say so.
+- **Every run is recorded**, a coarse exploratory pass included. There are no local runs: SDK
+  0.17.0 removed `--results`, and it isn't used with older SDKs either. A coarse pass that only
+  locates the interesting region is a small recorded sweep of its own; say so, and keep its run
+  count low.
 
 ## 4. Write the documents
 
@@ -161,9 +163,10 @@ nothing.
 
    (On Windows, start it from PowerShell with `Start-Process -RedirectStandardOutput` and stop it
    after `Wait-Process -Timeout`.) Note the exit code in `sweep.json`: `0` passed, `124` timed
-   out, anything else failed. A failed run's code depends on the shell (255 on Linux/macOS and in
-   Git Bash, -1 in PowerShell, 127 through Git Bash's `timeout`, the same code as "command not
-   found"), so the log and step 6 decide what happened, not the code.
+   out, anything else failed. From SDK 0.17.0 a failed run exits with 1. Before it, the code was
+   the failing step's number cut to 8 bits by the shell (step 256 exited 0) or 255, -1 or
+   4294967295 outside a step, and 127 through Git Bash's `timeout` is also "command not found".
+   So the log and step 6 decide what happened, not the code.
 
 After the **first run**, read the fingerprint from the `CppModel.BinaryFingerprint: <n>` line of
 its log. Call `get_binary_runs` with that fingerprint and `count: 0`: `total` includes the run just
@@ -216,8 +219,8 @@ stopped early, and tell the user.
 
 Each run in `get_binary_runs` has its `index`, `passed` (every cycle's `CppModel.StepResult` was
 1), and the execution record: `results`, a list of `{label, x, y}` output series, alongside the
-`inputs`/`parameters` that were read. A failing run's exit code is platform-dependent, so go by
-`passed`.
+`inputs`/`parameters` that were read. Go by `passed`, not the exit code (before SDK 0.17.0 it
+was platform-dependent and could even be 0 for a failure).
 
 - **Pass/fail map first.** Show a table with one row per run, or a 2-D grid when two things were
   varied. Then state the boundary in words, e.g. "passes up to 4.0 m/s², fails from 5.0 m/s²
@@ -271,5 +274,6 @@ A sweep that should keep running in CI needs no tool (SDK 0.10.0+). Copy the run
 keeping (`<out>/runs/NNN.json`, renamed after what they test) into the project. Then add one
 `ctest` test per document that runs the binary with `--inputs <document>`. Mark a point meant to
 fail with `WILL_FAIL`. `cppmodel:ci-pipeline`'s "Sweeps" shows the CMake. Every test
-submits its execution, and the exit code is the result. With an SDK before 0.10.0, recommend
+submits its execution, and the exit code is the result (reliable from SDK 0.17.0, which exits
+with 0 or 1; update an older SDK first so a failure at step 256 can't exit 0). With an SDK before 0.10.0, recommend
 updating it (`cppmodel:update-dependencies`) first.

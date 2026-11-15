@@ -3,6 +3,12 @@ name: cppmodel:update-dependencies
 description: Download and install the latest CppModel libraries into the project's dependencies folder, detecting the right platform build, diffing the public headers against what's already there to catch interface changes (RunCyclic's signature especially), migrating the build files when moving from an SDK before 0.8 (per-compiler static libraries) to 0.8+ (one shared library, find_package(cppmodel)), fixing unambiguous call-site breakage and asking about anything unclear, then rebuilding to verify before offering to sync the version pinned in CI/docs. Use when asked to update, upgrade, or refresh the CppModel dependencies/libraries to the latest version.
 ---
 
+> **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
+> back from it (the `cppmodel` MCP server). Never work around it: no runs without submitting, no
+> parsing stdout or files for results, no analysis scripts in place of verification rules or
+> exports. If the workspace can't be reached, stop and fix the login with the user. See
+> `cppmodel:simulations`' "The workspace is part of the loop".
+
 ## What's being updated
 
 Projects using CppModel typically vendor a single prebuilt SDK drop from
@@ -205,8 +211,9 @@ old headers include `cppmodel.hpp`, and `CppModelBase`/`CppModelLib` are namespa
   - **`CPPMODEL_DISCARD_RESULTS` is removed.** Where it's still set, it no longer fails the run:
     the run submits like any other. Point out every place that sets it, and ask before removing
     it.
-  - **New local-run options:** binaries take `--inputs <file>` and `--results <file>` (see
-    `cppmodel:simulations`' "Local runs"). The library reads them from the command line itself.
+  - **New options:** binaries take `--inputs <file>` and `--results <file>` (see
+    `cppmodel:simulations`' "Inputs from a file and exit codes"; `--results` was removed again in
+    0.17.0). The library reads them from the command line itself.
     So a project whose own `main()` already parses an `--inputs` or `--results` option, or a Python
     script using `argparse` with those names, now has them read twice. Grep for them and point out
     any clash.
@@ -265,6 +272,35 @@ old headers include `cppmodel.hpp`, and `CppModelBase`/`CppModelLib` are namespa
     (`VirtualPlc.h` for C, `VirtualPlc.hpp` for C++, `cm_plc_*` in the C API, with the new status
     `CM_ERROR_PROGRAM`), and a run inside a git repository records **`CppModel.GitHash`** (the
     commit, with `-dirty` for uncommitted changes to tracked files).
+- 0.16.0 (release notes): nothing existing changes, so nothing needs fixing. New:
+  `CMODEL_DOCUMENT()` (and `CppModel_uploadDocs()`, `cppmodel::UploadDocs()`) makes an executable
+  that checks a documentation folder and uploads it as a project's documentation in the workspace
+  (`cppmodel:documentation`).
+- 0.17.0 (release notes): every run is recorded in the workspace; nothing reads a run any other way.
+  Grep the project, its scripts and CI files for each item, and show what was found:
+  - **`--results` is removed.** A simulation started with it fails before it runs. Remove it from
+    every `ctest` registration, script and CI step (ask before changing CI or a script others rely
+    on); where something read the results file, it reads the execution from the workspace instead,
+    by the `Execution: <id>` the run prints (the `cppmodel` MCP server for interactive work, or the
+    Workspace API for a script). Ask what such a script is for before rewriting it.
+  - **`GetResults()` (C++), `results()` (Python/Node) and `cm_simulation_results_json` (C ABI) are
+    gone from the public API**, so code calling them no longer compiles (C++/C) or fails (Python/
+    Node). Programs already built with an earlier SDK keep running. Such code checked a run before
+    it was submitted; the check belongs in verification rules (`cppmodel:verification`) or in
+    reading the recorded execution. Show each use and ask before rewriting it.
+  - **A failed run exits with 1**, not the first failing step's number (shells kept only its low 8
+    bits, so a failure at step 256 exited 0 and passed CI). `CMODEL_SIMULATE`/`CMODEL_PERSIST`
+    change with the header. A C++ `main()` that returns `GetSimulationResult()` is changed to
+    `return simulation.GetSimulationResult() == 0 ? 0 : 1;` (step 7 does it without asking). A
+    script, `ctest` property (e.g. `PASS_REGULAR_EXPRESSION`, a specific `WILL_FAIL` exit check) or CI
+    step that compares the exit code with a step number: point it out and ask. The step number is
+    still the run's result (`GetSimulationResult()`, `CppModel_getSimulationResult()`), and a step
+    that failed while `CppModel.Step` was 0 now gives -1 instead of 0 (a pass).
+  - **With `CI` set and `CPPMODEL_LOGIN_TIMEOUT` unset**, a run without credentials fails at once
+    instead of waiting 60 s. Nothing to fix; an explicit `CPPMODEL_LOGIN_TIMEOUT: 0` can stay.
+  - **An execution over the workspace's 100 MB limit** (its JSON, uncompressed) is no longer sent:
+    the run fails with its size, series and point count. If a simulation hits it, offer fewer
+    recorded signals, a coarser step, a shorter run or splitting it.
 
 ## 7. Fix call sites: mechanical changes now, ambiguous ones stop and ask
 

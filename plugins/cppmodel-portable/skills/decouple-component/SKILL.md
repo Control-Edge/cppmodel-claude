@@ -18,6 +18,12 @@ description: "Decouple a vendor-coupled controller component (one that calls a v
 
 ---
 
+> **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
+> back from it (the `cppmodel` MCP server). Never work around it: no runs without submitting, no
+> parsing stdout or files for results, no analysis scripts in place of verification rules or
+> exports. If the workspace can't be reached, stop and fix the login with the user. See
+> `cppmodel:simulations`' "The workspace is part of the loop".
+
 ## What "decoupled" looks like
 
 The target shape is a pure function over a single plain struct - no hardware, no RTOS, no vendor

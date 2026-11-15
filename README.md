@@ -22,13 +22,13 @@ A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
 - **`cppmodel:simulation-inputs`** - run a simulation with specific inputs (time series) and
   parameters (constants) without editing or rebuilding it. Finds the exact names the simulation
   reads, validates the document, and passes it to the binary with `--inputs` (SDK 0.10.0+; older
-  SDKs get it posted right before the run). It can explore values with local runs first. It then
-  confirms from the recorded execution that the values were really used.
+  SDKs get it posted right before the run). Every try is a recorded run, and it confirms from the
+  recorded execution that the values were really used.
 - **`cppmodel:parameter-sweep`** - runs a simulation over a grid or list of parameter values, one
   restart per parameter set (input profiles are chained in time within each run): a run of the
   binary with that run's document per run (`--inputs`, or `set_inputs`
-  before SDK 0.10.0), and one `get_binary_runs` call that checks every run used its values. A
-  coarse exploratory pass can run locally. Then it reports the
+  before SDK 0.10.0), and one `get_binary_runs` call that checks every run used its values. Then
+  it reports the
   pass/fail map, where the boundary lies, and the metrics you care about. Nothing is built besides
   the simulation. Points worth keeping become `ctest` tests that run with `--inputs`.
 - **`cppmodel:experiment-design`** - designs a field data-collection plan for a real machine,
@@ -156,6 +156,11 @@ Installing the plugin is free and requires nothing further; using it against rea
 requires a CppModel account. Free accounts use the shared `free-workspace.cppmodel.com` workspace
 and licensed ones their dedicated `w<number>.cppmodel.com` workspace. The plugin picks the right
 one from your login automatically, and every skill works the same with either.
+
+The workspace is an integral part of CppModel, not an optional upload: every simulation run is
+submitted to it, and every result, verdict, comparison and chart the skills report is read back
+from it. The skills never work around it (no runs without submitting, no parsing of output or
+files in its place); when it can't be reached, they stop and help fix the login instead.
 
 ## What's inside
 

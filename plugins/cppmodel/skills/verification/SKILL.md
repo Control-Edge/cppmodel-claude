@@ -3,6 +3,12 @@ name: cppmodel:verification
 description: Turn a controller's requirements into CppModel verification rules (Always, Response, Settle, Mode, Oscillation, Wear, Rate, Energy, Percent) and requirement coverage (VerifyRequirement / CppModel_verifyRequirement) in a simulation, prove each rule can fail, read the rules' outcomes and margins from the recorded execution, and report which requirements are covered, by which simulation and rule, and whether they passed. Use when asked to verify a controller against requirements or a spec, add pass/fail criteria for timing, ranges, interlocks, mode sequences, settling or oscillation, trace tests to requirement IDs, report requirement coverage, or explain why a verification rule failed. Needs SDK 0.11.0+.
 ---
 
+> **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
+> back from it (the `cppmodel` MCP server). Never work around it: no runs without submitting, no
+> parsing stdout or files for results, no analysis scripts in place of verification rules or
+> exports. If the workspace can't be reached, stop and fix the login with the user. See
+> `cppmodel:simulations`' "The workspace is part of the loop".
+
 ## What this is
 
 From SDK 0.11.0 the library checks how a run behaves over time with **verification rules**: objects
@@ -158,7 +164,7 @@ silently. For each rule, show one run where it fails, at the step where it shoul
   `VerifyZoneControl` does this (the parameter `Controller` with `reference`, `late-smoke`,
   `aggressive`...; never a `CppModel.*` name, which is reserved); follow it only if the project already uses that pattern. Never add a fault
   switch to production controller code.
-- While iterating, these can be local runs (`--results`). Finish with recorded runs.
+- Every one of these runs is recorded (there are no local runs; SDK 0.17.0 removed `--results`).
 - Check from each run's `verification` that the expected rules failed, with the expected
   `violations` intervals, and that the others still passed. `what_changed` against the passing
   run confirms the failing run differs only in what you meant to change (the input, or the build).
@@ -204,7 +210,7 @@ From SDK 0.12.0, each execution carries its own coverage in `requirements`: per 
 With SDK 0.11.0, coverage is only in `cppmodel-requirements.json` (or
 `CPPMODEL_REQUIREMENTS_FILE`), which the library writes in the working directory. It keeps one
 entry per simulation, from its last run there: `time`, `passed`, and the same per-ID entries. A
-local run, a negative test or an old build also replaces its simulation's entry, so run the
+negative test or an old build also replaces its simulation's entry, so run the
 simulations the report is about as recorded runs first, then read the file and check each entry's
 `time` against the run. Take each verdict from the workspace, not from the file's `passed`.
 

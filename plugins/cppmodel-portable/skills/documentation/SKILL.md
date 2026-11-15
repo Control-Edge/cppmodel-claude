@@ -18,6 +18,12 @@ description: "Write or update functional descriptions of a system's control func
 
 ---
 
+> **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
+> back from it (the `cppmodel` MCP server). Never work around it: no runs without submitting, no
+> parsing stdout or files for results, no analysis scripts in place of verification rules or
+> exports. If the workspace can't be reached, stop and fix the login with the user. See
+> `cppmodel:simulations`' "The workspace is part of the loop".
+
 ## What this documentation is for
 
 The goal is a **functional description of each system function**: what the control system does,
@@ -240,12 +246,13 @@ and in time:
   tool call whose answer is cut to size: `export_signals` `png` for a figure, `csv` for the values
   behind a number in a table, `get_execution` with `summary: true` for the signal names and ranges,
   `what_changed` for what differs between two runs.
-- **Running offline and building scripts around it costs far more**, and it buys nothing: writing
-  a plotting or parsing script, fixing it when it doesn't run the first time, reading a whole
-  results file into context to find a few values, rendering a chart, then cleaning up leftover
-  files, and the result is a picture nobody can trace back to a run or check later.
-- **So never run a simulation offline (`--results`) to produce documentation, and never write a
-  script to plot, parse or re-check results for it.** If no recorded run covers what a figure
+- **Working around the workspace costs far more**, and it buys nothing: capturing a run's
+  stdout, writing a plotting or parsing script, fixing it when it doesn't run the first time,
+  reading whole outputs into context to find a few values, rendering a chart, then cleaning up
+  leftover files, and the result is a picture nobody can trace back to a run or check later.
+- **So never produce documentation from anything but recorded executions** (there are no local
+  runs: SDK 0.17.0 removed `--results`, and older SDKs' `--results` isn't used either), **and never
+  write a script to plot, parse or re-check results for it.** If no recorded run covers what a figure
   needs, run the simulation so it submits (with `cppmodel:simulation-inputs` for a scenario), then
   export from that execution.
 

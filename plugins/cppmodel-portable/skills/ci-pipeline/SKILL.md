@@ -18,6 +18,12 @@ description: "Generate or extend a CI pipeline - GitHub Actions, GitLab CI, Bitb
 
 ---
 
+> **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
+> back from it (the `cppmodel` MCP server). Never work around it: no runs without submitting, no
+> parsing stdout or files for results, no analysis scripts in place of verification rules or
+> exports. If the workspace can't be reached, stop and fix the login with the user. See
+> `cppmodel:simulations`' "The workspace is part of the loop".
+
 ## What this produces
 
 A pipeline config for one of four providers - `.github/workflows/<name>.yml` (GitHub Actions),
@@ -235,15 +241,23 @@ secrets/variables, never literal values in the config:
 Never set `CPPMODEL_DISCARD_RESULTS` (removed in 0.10.0; before 0.8: `CPPMODEL_OFFLINE`) in CI,
 and never pass a simulation `--results` there. CI runs are submitted to the workspace like any
 other, and their executions are the history later runs are compared against (see
-`cppmodel:simulations`' "The workspace is part of the loop"). From SDK 0.10.0 a run with
-`--results` fails when `CI` is set, which every supported provider sets.
+`cppmodel:simulations`' "The workspace is part of the loop"). SDK 0.17.0 removed `--results`
+(naming it fails the run); from 0.10.0 to 0.16.x it was refused when `CI` is set.
 
 Set `CPPMODEL_LOGIN_TIMEOUT: 0` (as a plain value, not a secret) next to the credentials (SDK
 0.9.1+). With a missing or wrong secret, a run then fails at once with a `CppModel workspace:` line
-instead of printing a browser sign-in link and waiting 60 seconds per simulation.
+instead of printing a browser sign-in link and waiting 60 seconds per simulation. From SDK 0.17.0
+that is already the default when `CI` is set (every supported provider sets it), but keep the
+explicit `0`: it costs nothing and covers older SDKs and runners that don't set `CI`.
 
 Let `ctest`'s own nonzero exit code fail the job everywhere - don't wrap it in something that
-swallows the exit code.
+swallows the exit code. From SDK 0.17.0 a failed simulation exits with 1. Before it, the exit code
+was the first failing step's number, which Linux/macOS keep only the low 8 bits of, so a failure
+at step 256 exited 0 and passed the job: update older SDKs (`cppmodel:update-dependencies`).
+
+An execution over the workspace's 100 MB limit (its JSON, uncompressed) fails the run from SDK
+0.17.0 instead of being sent; record fewer signals, a coarser step or a shorter run, or split the
+simulation.
 
 A case that differs from an existing simulation only in inputs and/or parameters is a committed
 input document and a `ctest` test that passes it with `--inputs`, with no new C/C++ file; a case

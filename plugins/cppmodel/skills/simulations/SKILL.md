@@ -90,7 +90,9 @@ covers the executable only, not the CppModel shared library beside it (SDK 0.8+)
 an SDK update relinks the executable, so its fingerprint changes as well.
 From SDK 0.7.2 the simulation also prints it when it finishes (`CppModel.BinaryFingerprint: <n>`,
 then `Execution: <id>` when the server returned one; `(not submitted)` when the execution never
-reached the workspace). The
+reached the workspace, which from SDK 0.17.0 includes an execution over the workspace's 100 MB
+limit: the run fails, printing its size, series and point count, and the fix is fewer recorded
+signals, a coarser step or a shorter run). The
 server indexes executions by it, so `get_binary_runs` (`simulation`, `fingerprint`, `start`,
 `count` up to 50) returns that build's runs in run order: index 0 is its first execution, indices
 never move as more runs arrive, and other builds' executions don't interleave. Each run comes with
@@ -108,7 +110,8 @@ From SDK 0.15.0, a run whose executable is inside a git repository also records
 `CppModel.GitHash`, the commit checked out when it started (e.g. `d6ebfd2`, with `-dirty` when a
 tracked file had uncommitted changes; untracked build output doesn't count), and prints it next to
 the fingerprint. It's the only parameter that is a string, and it's missing outside a repository
-or without git. It tells a local run from a CI run of the same commit at a glance.
+or without git. It tells a run on a developer's machine from a CI run of the same commit at a
+glance.
 
 ### Committed and uncommitted runs
 
@@ -225,10 +228,8 @@ more:
   values;
 - leftover files to clean up, and numbers the user can't open or check later.
 
-The same goes for a local run's `--results` file: it holds every series of the run, and only a
-script or reading all of it gets anything out of it. `export_signals` and the other tools work only
-on submitted executions. So let the library submit whenever you'll look at more than pass/fail,
-and ask for a `png` or `csv` export of just the signals and time window you need.
+Every run is submitted (SDK 0.17.0 removed `--results`, which wrote the execution to a file), so
+ask the workspace for a `png` or `csv` export of just the signals and time window you need.
 
 So match the question to the tool:
 
@@ -259,6 +260,23 @@ So match the question to the tool:
 
 ## The workspace is part of the loop
 
+**The workspace is an integral part of CppModel, not an optional upload target.** A CppModel
+simulation is a run *and* its recorded execution: the library fetches the run's inputs from the
+workspace, submits every run there, and pass/fail, verification outcomes, requirement coverage,
+comparisons, charts and documentation evidence are all read back from it. There is no supported
+way to use CppModel without it, so never try to work around it:
+
+- don't run without submitting (no `--results`, `CPPMODEL_DISCARD_RESULTS`, `runOffline`, or a
+  patched/stubbed library or login);
+- don't capture or parse a run's stdout, logs or files for signal values, and don't add printf
+  logging or extra outputs to get data the execution already records;
+- don't reimplement checks, plots or comparisons in scripts when a verification rule,
+  `export_signals` or `what_changed` does it;
+- don't swap in a hand-written harness without the library to "test faster".
+
+When the workspace can't be reached or the login fails, the run fails (`CppModel workspace:`):
+stop and fix the login or network with the user, rather than finding another way to get a result.
+
 Every simulation run is submitted to the workspace, and its execution history is the record of the
 work: each execution keeps the inputs and parameters it read and every output series, retrievable
 by id later. So:
@@ -269,13 +287,12 @@ by id later. So:
   before it, `Could not reach API. Running offline.`) produced nothing anyone can look at or
   compare later. Treat it as a run that didn't happen: fix the cause (`.env`, network, login) and
   run again.
-- **Local runs are for exploring, not for results** (SDK 0.10.0+; see "Local runs" below).
-  `--inputs <file> --results <out.json>` runs without submitting, so you can try values or check a
-  fix many times while iterating, as long as the exit code and the printed `CppModel.Verify` lines
-  answer the question. Its fingerprint line ends in `(not submitted)`. A try whose signals you need
-  to see is a recorded run, then a `png` or `csv` export. Whatever you
-  then report, whether a pass/fail, a metric, a conclusion or a before/after comparison, comes from
-  a recorded run of the same binary. Every iteration ends with one.
+- **There are no local runs.** Every try, however exploratory, is a recorded run: trying values,
+  checking a fix, a coarse pass before a sweep. SDK 0.17.0 removed `--results`, and a run started
+  with it fails before it runs. With an SDK from 0.10.0 to 0.16.x it still wrote the execution to
+  a file instead of submitting it; don't use it there either. Whatever you report, whether a
+  pass/fail, a metric, a conclusion or a before/after comparison, comes from a recorded execution,
+  read by the id the run prints (`Execution: <id>`).
 - **Compare runs through the history.** Before vs after a change, one scenario against another, a
   sweep against an earlier sweep: `list_executions` finds them, `what_changed` says what differs
   between two of them, and `get_execution` fetches each by id, with `signals` for just the series
@@ -301,45 +318,36 @@ by id later. So:
   later sessions can find exactly that run.
 - **History isn't clutter.** Never delete a simulation to tidy up (see `delete_simulation` above).
 
-## Local runs
+## Inputs from a file and exit codes
 
-From SDK 0.10.0 a built simulation takes two options. The library reads them itself, so any binary
-built against 0.10.0+ has them, `CMODEL_SIMULATE` and custom `main()`s alike:
-
-- `--inputs <file>` (`-` = stdin) takes the inputs and parameters from the file instead of the
-  workspace. The file is a `set_inputs` document, `{inputs, parameters}`; an execution record
-  also works. The run still submits.
-- `--results <file>` (`-` = stdout) writes the execution to the file instead of submitting it. The
-  file has an execution record's shape (`inputs`, `results`, `parameters`, change-compressed
-  series), so read it like `get_execution`'s result. On its own it still fetches the pending
-  `set_inputs` document, without consuming it.
-
-Both together make a **local run**: nothing is fetched or submitted. It still logs in, through the
-same environment variables as a recorded run: `get_run_token`'s values set for that one command
-only, never passed as an argument or written to a file:
+From SDK 0.10.0 a built simulation takes `--inputs <file>` (`-` = stdin). The library reads it
+itself, so any binary built against 0.10.0+ has it, `CMODEL_SIMULATE` and custom `main()`s alike.
+It takes the inputs and parameters from the file instead of the workspace. The file is a
+`set_inputs` document, `{inputs, parameters}`; an execution record read from the workspace also
+works. The run still submits, and consumes any pending `set_inputs` document, but the execution
+records the values from the file. It logs in like any run: `get_run_token`'s values set for that
+one command only, never passed as an argument or written to a file:
 
 ```
-CPPMODEL_ACCESS_TOKEN=<access_token> CPPMODEL_WORKSPACE=<workspace> CPPMODEL_LOGIN_TIMEOUT=0 ./build/<path>/<SimulationBinary> --inputs <file> --results <out.json>
+CPPMODEL_ACCESS_TOKEN=<access_token> CPPMODEL_WORKSPACE=<workspace> CPPMODEL_LOGIN_TIMEOUT=0 ./build/<path>/<SimulationBinary> --inputs <file>
 ```
 
-The library checks the token's signature and expiry against the login server's keys, so a
-missing, expired or forged token fails the run. Without the tool, a run falls back to
-`.cppmodeltoken` or `.env`. `--results` is refused when `CI` is set.
+Then check it with `get_execution` (the printed `Execution:` id, `expected` = the document) and
+report that execution.
 
-Use local runs while iterating: trying parameter values before settling on a scenario, checking
-whether a fix makes a failing trace pass, or exploring a coarse region before a sweep. Take
-pass/fail from the run itself (exit code 0 or not, and the printed `CppModel.Verify.<name>:
-PASS|FAIL` lines), and open the results file only for a value or two. When a try needs more than
-that (scanning a series, a chart, a comparison), don't write a script to analyse the file: do the
-recorded run and ask the workspace ("Ask the workspace instead of writing scripts"). Don't use
-local runs for a test, `ctest`, CI, or to avoid a run showing up in the history.
+SDK 0.10.0 to 0.16.x also had `--results <file>`, which wrote the execution to a file instead of
+submitting it (a "local run"). SDK 0.17.0 removed it: naming it fails the run before it runs. Don't
+use it with an older SDK either, and if a project's scripts, `ctest` registrations or docs still
+pass it, remove it (`cppmodel:update-dependencies`).
 
-**End every iteration with a recorded run.** When an iteration is done, run the same binary again
-with the same `--inputs <file>` and without `--results`. It submits, consumes any pending
-`set_inputs` document, and prints its `Execution:` id. Then check it with `get_execution` (that id,
-`expected` = the document) and report that execution, not the local file. Compare its results with
-the local run's; if it didn't reproduce (e.g. the simulation uses randomness or wall-clock time),
-say so and report the recorded run. The local results were only a preview.
+**Exit code.** From SDK 0.17.0 a `CMODEL_SIMULATE` run exits with 0 when every step passed and 1
+when it failed (a failing step, a failed verification rule, or a run that couldn't start or
+submit); a C++ `main()` returns `GetSimulationResult() == 0 ? 0 : 1`. The first failing step's
+number is still the run's result (`GetSimulationResult()`, `CppModel_getSimulationResult()`), not
+the exit code. Before 0.17.0 the exit code was that step number, cut by Linux/macOS shells to its
+low 8 bits (a failure at step 256 exited 0) and shown as 255, 127 or 4294967295 for a failure
+outside a step; with those SDKs judge a run by its recorded execution, not its exit code. Any
+other code (e.g. 127, the binary or a DLL not found) means the program didn't run.
 
 ## Workspaces
 
@@ -392,8 +400,7 @@ rule:
 - the output series `CppModel.Verify.<name>`: 1 until the rule first fails, then 0.
 
 SDK 0.11.0 stored each outcome as the parameter `CppModel.Verify.<name>` instead; the MCP server
-moves those into `verification`, so every execution reads the same. A local `--results` file is
-the binary's own: with 0.11.0, look in its `parameters`.
+moves those into `verification`, so every execution reads the same.
 
 A simulation that names requirements (`VerifyRequirement`, SDK 0.12.0+) also has `requirements`:
 requirement ID → `{whole_run, steps, from_s, to_s}`, how the run covered it. Naming an ID says the
