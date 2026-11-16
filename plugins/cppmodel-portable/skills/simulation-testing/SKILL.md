@@ -506,7 +506,9 @@ Workflow:
    ids (from `list_executions`) for the code, parameters and signal names, then `get_execution`
    for both with the same `signals`, so the fix is shown to change what it was meant to change and
    nothing else. Give the user the comparison's `uiUrl`, which overlays both runs. A `png` export of
-   the same signals and window from the new execution shows the fix; give its link as well. Don't add a temporary test or extra outputs to collect
+   the same signals and window from both executions on one chart (the failing run's as
+   `{label, executionId}`, see `cppmodel:simulations`' "Compare runs on one chart") shows the fix;
+   give its link as well. Don't add a temporary test or extra outputs to collect
    what the two executions already recorded.
 
 If the trace's `inputs`/`parameters` show values other than the source's fallbacks (for a

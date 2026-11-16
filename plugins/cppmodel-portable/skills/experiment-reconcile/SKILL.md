@@ -82,7 +82,11 @@ plan's signal names, with `x` in ms from the segment start, put the achieved run
 `parameters`, set `execution_time` to when the attempt started on the machine (`DD-MM-YYYY
 HH:MM:SS`, from the log's time base when it's absolute), and leave out `CppModel.BinaryFingerprint`
 and `CppModel.StepResult` (its `passed` is then `null`). Call it with `dry_run` first. Do this only when the user asks or agrees; the local logs stay the source for this
-reconciliation either way.
+reconciliation either way. Once an attempt is recorded, one `export_signals` chart can put its
+measured channel next to the as-run prediction (a signal from the field execution as `{label,
+executionId, simulationId: "field-<plan-id>"}`, see `cppmodel:simulations`' "Compare runs on one
+chart"), giving teammates a link to that comparison. It doesn't replace the reconciliation page,
+which also shows the tolerance band and the planned prediction.
 
 ## 1. Read the logs
 

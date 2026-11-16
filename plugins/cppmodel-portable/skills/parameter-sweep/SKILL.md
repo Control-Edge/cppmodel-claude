@@ -240,9 +240,17 @@ was platform-dependent and could even be 0 for a failure).
 - **Pass/fail map first.** Show a table with one row per run, or a 2-D grid when two things were
   varied. Then state the boundary in words, e.g. "passes up to 4.0 m/s², fails from 5.0 m/s²
   with the fast profile only".
-- **Metrics from the execution records.** Fetch the series agreed in step 3 with `signals`.
-  Series are change-compressed (`x` = the times the value changed, plus the end), so read them
-  with hold-last-value. With chained input profiles, compute each metric per profile over its
+- **Metrics from the execution records.** Ask for them across the whole batch in one call where
+  possible: `query_executions` with the sweep's `fingerprint` (and `simulations`, or a
+  `simulationPrefix` when one build's sweep spans several use-case simulations), the signals
+  agreed in step 3, `reduce: "summary"` (first, last, min, max, time-weighted mean, optionally over
+  a `from`/`to` window) or `"steps"` (one value per `CppModel.StepNumber` step), and
+  `parameters` set to the swept names, so each row is identified by its values. Each item also
+  has `passed` and its `failedRules`. Page with `offset` (`nextOffset`) and narrow the request if
+  the result says `truncated`; with other runs of the same binary in the history, keep only the
+  sweep's execution ids. For a metric those reductions don't give, fetch the series with
+  `get_binary_runs` and `signals`. Series are change-compressed (`x` = the times the value
+  changed, plus the end), so read them with hold-last-value. With chained input profiles, compute each metric per profile over its
   time window in the document. With verification rules, their outcomes and margins in each run
   already answer "how close to failing" without computing anything. Compute other metrics from
   these records; a short one-off computation over them is fine. They are the API's own data. Never search the project for other result files, or
@@ -251,9 +259,11 @@ was platform-dependent and could even be 0 for a failure).
 - **Refine where it matters.** If the boundary falls between two values, offer a second, finer
   sweep between them rather than guessing where it is. With verification rules, the margins on
   both sides show roughly where to aim it. Still confirm the boundary with runs.
-- For a visual comparison, offer to plot the key signal across runs. An export covers one
-  execution only, so a cross-run overlay needs a chart of your own: load the `dataviz` skill
-  before drawing it.
+- For a visual comparison, overlay the key signal of up to 8 runs (the boundary's neighbours, say)
+  in one export: `export_signals` with each run's signal as `{label, executionId}` (see
+  `cppmodel:simulations`' "Compare runs on one chart"), look at it, and give its link. Only more
+  runs than that, or a metric per run such as the pass/fail map, needs a chart of your own: load
+  the `dataviz` skill before drawing it.
 
 Point the user at the web UI for any run they want to inspect: `get_binary_runs` gives the
 simulation's page as `uiUrl`, so name the run's fingerprint and index with it. For a link to one

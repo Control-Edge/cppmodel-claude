@@ -16,7 +16,10 @@ A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
   parameters, signals), or fetch all the runs of one build (e.g. a whole sweep) by its
   `CppModel.BinaryFingerprint`. Lists can be sorted by latest run, latest run from a clean commit,
   or execution count, to find recent work, or cut to the simulations whose latest run was (or
-  wasn't) from committed code. Chosen signals of one execution can be exported as a chart the agent looks at, or
+  wasn't) from committed code. It lists the builds (by fingerprint or git commit) that ran, and
+  gets chosen signals' statistics, per-step values and pass/fail for many executions in one call,
+  such as a sweep table across several use-case simulations. Chosen signals of one execution, or
+  of several runs on one chart, can be exported as a chart the agent looks at, or
   as a CSV, with a snapshot link (valid for 7 days) so you see the same chart. Results come with
   links into the workspace web UI.
 - **`cppmodel:simulation-inputs`** - run a simulation with specific inputs (time series) and

@@ -1,6 +1,6 @@
 ---
 name: simulations
-description: "Query CppModel Workspace API results - list simulations (by name, or sorted by latest run, latest run from a clean commit, or execution count; or only those whose latest run was, or wasn't, from committed code), fetch the latest results for one, list its execution history, see what changed between two executions (code, parameters, signals), or compare executions with each other, with links into the workspace web UI. Exports chosen signals of one execution as a chart image to look at, or as a CSV, with a link for the user. Every simulation run is submitted to the workspace, and its execution history is how runs are compared. Use when asked about CppModel simulation results, executions, how a run compares with an earlier one or what changed since it, the Workspace API, \"show me / plot / chart the signals\", \"look at the trace\", \"what did I run last\", \"what isn't committed yet\", or a pasted `/snapshots/` link, in a project that uses the CppModel libraries."
+description: "Query CppModel Workspace API results - list simulations (sorted by name, latest run, latest committed run or execution count; or only those whose latest run was, or wasn't, committed), fetch the latest results, list execution history, see what changed between two runs (code, parameters, signals), list the builds (fingerprint or commit) that ran, or get chosen signals' statistics, per-step values and pass/fail across many executions at once (a sweep, a commit), with web UI links. Exports signals of one execution, or several runs on one chart, as an image to look at or a CSV, with a link for the user. Every run is submitted to the workspace, and its history is how runs are compared. Use when asked about CppModel simulation results, executions, how a run compares with an earlier one or what changed, the Workspace API, \"show me / plot / chart the signals\", \"look at the trace\", \"what did I run last\", \"what isn't committed yet\", or a pasted `/snapshots/` link, in a project that uses the CppModel libraries."
 ---
 
 ## Reading notes
@@ -38,21 +38,23 @@ an ad-hoc program instead, and never search the project for result files in thei
 
 | Tool | Use |
 |------|-----|
-| `list_simulations` | list simulations with execution counts, `lastExecutionAt` and its `gitHash`, and the newest run from a clean commit (`lastCommittedExecutionAt`, `lastCommittedGitHash`) (`scope: "team"` for the whole team; `sort` by `name`, `executions`, `lastExecution` or `lastCommittedExecution`; `order`; `tracking`: `committed`/`uncommitted`, see "Committed and uncommitted runs") |
+| `list_simulations` | list simulations with execution counts, `lastExecutionAt` and its `gitHash` and `fingerprint`, and the newest run from a clean commit (`lastCommittedExecutionAt`, `lastCommittedGitHash`) (`scope: "team"` for the whole team; `sort` by `name`, `executions`, `lastExecution` or `lastCommittedExecution`; `order`; `tracking`: `committed`/`uncommitted`, see "Committed and uncommitted runs") |
 | `get_latest_result` | the latest execution: inputs, parameters, results |
 | `list_executions` | execution history, newest first, with id, time, status (up to 1000 per page) |
 | `get_execution` | one past execution by id, same shape as `get_latest_result` |
 | `what_changed` | what differs between two executions: code, parameters, signal names (see "Comparing runs") |
-| `export_signals` | a chart (PNG, returned as an image), CSV or JSON of up to 8 signals of one execution, with a `/snapshots/<id>` link for the user (see "Looking at signals") |
+| `export_signals` | a chart (PNG, returned as an image), CSV or JSON of up to 8 signals of one execution, or of several executions on one chart, with a `/snapshots/<id>` link for the user (see "Looking at signals") |
 | `get_export` | an export again, by id or `/snapshots/<id>` link, in any format |
-| `get_binary_runs` | the runs of one build, by run index, each with `passed` (see "Runs of one build") |
+| `get_binary_runs` | the runs of one simulation by one build, by run index, each with `passed` (see "Runs of one build") |
+| `list_builds` | the builds that ran simulations, newest first, grouped by fingerprint or by commit (see "Runs of one build") |
+| `query_executions` | chosen signals (as statistics, per-step values or series) and parameters of many executions in one call, each with pass/fail (see "Many runs side by side") |
 | `get_pending_inputs` | the document waiting for this account's next execution (usually none) |
 | `set_inputs` | post this account's next execution's inputs/parameters (see below) |
 | `submit_execution` | record an execution no binary ran, such as measured data (see below) |
 | `delete_simulation` | IRREVERSIBLE (see below) |
 | `list_docs`, `get_docs`, `upload_docs`, `delete_docs` | the workspace's published documentation (w##### workspaces only); see `cppmodel:documentation`, "Publishing to the workspace" |
 | `get_workspace` | which workspace the server is connected to, with UI and API URLs |
-| `get_api_version` | the Workspace API version |
+| `get_api_version` | the Workspace API version and its request size limit (`limits.maxRequestBytes`) |
 
 The simulation name is exactly the string passed to `CMODEL_SIMULATE(...)` in the source; case
 and spaces matter. `list_simulations` shows the names.
@@ -121,6 +123,17 @@ records its `fingerprint` and `start` index) or repeated runs of a test, instead
 every user. Executions from older SDKs, or recorded before the server indexed fingerprints, aren't
 found; use `list_executions` for those.
 
+`list_builds` finds the builds themselves, newest first: executions grouped by
+`CppModel.BinaryFingerprint` (`by: "fingerprint"`, the default) or by `CppModel.GitHash`
+(`by: "gitHash"`), across all simulations or only some (`simulations`, exact names, or
+`simulationPrefix`). Each row has the build's execution and simulation counts, its first and last
+execution ids and times, and `lastGitHash` (by fingerprint) or `lastFingerprint` (by commit).
+Filter by `fingerprint` to see which commits one binary ran with (a VirtualPLC build can span
+several), or by `gitHash` to see which builds ran one commit (a developer's machine and CI, say).
+Use it for "what did that commit run", "which builds ran today" or to find the fingerprint for
+`get_binary_runs` or `query_executions` without fetching an execution first.
+`list_simulations` also gives each simulation's newest `fingerprint`.
+
 From SDK 0.15.0, a run whose executable is inside a git repository also records
 `CppModel.GitHash`, the commit checked out when it started (e.g. `d6ebfd2`, with `-dirty` when a
 tracked file had uncommitted changes; untracked build output doesn't count), and prints it next to
@@ -151,6 +164,32 @@ executable but not the PLC code: a change to the `.st` files alone keeps the sam
 one build's runs in `get_binary_runs` may have run different PLC code. Compare
 `CppModel.GitHash` (and its `-dirty`) for those, and don't edit the `.st` files during a batch.
 
+## Many runs side by side: `query_executions`
+
+`query_executions` returns chosen signals and parameters of many executions in one call, to compare
+them without fetching each execution: a sweep, every run of a commit across several simulations,
+or a few runs picked by id. Select the executions with any of `executionIds`, `fingerprint`,
+`gitHash` (`includeDirty: true` also matches `<hash>-dirty`), `simulations` (exact names) and
+`simulationPrefix`; given several, an execution must match all of them. Items come in execution-id
+order (`order: "asc"`, the order they were submitted, by default), paged with `limit` (up to 500)
+and `offset`; `total` counts every match and `nextOffset` is where the next page starts.
+
+- `signals` (up to 32): exact labels, or `{label, source}` for one that is both an input and an
+  output. One an execution lacks is listed in its `missing` rather than failing the call.
+- `reduce` says what each signal comes back as: `"summary"` (default: first, last, min, max and the
+  time-weighted mean over `from`..`to`, in ms), `"steps"` (one value per step of `stepSignal`,
+  `CppModel.StepNumber` by default: the value held just before the next step starts) or
+  `"series"` (the change-compressed series cut to `from`..`to`; can be large).
+- `parameters`: the names to return, or `"*"` for all; one an execution lacks is `null`.
+- With `verification` (default `true`) each item has `passed` (every `CppModel.StepResult` was 1;
+  `null` without one), `failedRules`, `rulesPassed` and `rulesTotal`. Each item has its `uiUrl`.
+- A result too big for the context is cut, and `truncated` says so: narrow the signals, the
+  `reduce` or the page.
+
+Use it for a sweep's metric table (pass/fail, a peak, a final value, per parameter set) instead of
+paging `get_binary_runs` and computing the statistics yourself, and for "how did every simulation
+do at this commit". It doesn't check `expected`: that stays with `get_binary_runs`.
+
 ## Comparing runs: `what_changed`
 
 `what_changed` (`simulation`, optional `current_id`, `previous_id`) says what differs between two
@@ -164,8 +203,9 @@ executions without fetching their data:
 
 Without ids it compares the simulation's two latest executions; with only `current_id`, that
 execution and the one submitted before it; with both, those two. It doesn't compare signal
-values: fetch those with `get_execution` and `signals`, or give the user its `uiUrl`, which overlays
-both runs' signals in the web UI. Each run in the result also has its own `uiUrl`.
+values: fetch those with `get_execution` and `signals`, export the signals that differ from both
+runs on one chart (`export_signals`, "Compare runs on one chart"), or give the user its `uiUrl`,
+which overlays both runs' signals in the web UI. Each run in the result also has its own `uiUrl`.
 
 Start with it whenever the question is why a run differs from an earlier one: it says at once
 whether the code was rebuilt, which values were different, and which signals appeared or
@@ -220,9 +260,22 @@ export_signals {simulation: "CPidSystemSim", format: "png",
   link beside it, marked temporary with its `expiresAt` date, and keeps the chart itself as a PNG
   file next to its pages: the export result names the PNG the client saved
   (`[Image: source: <path>]`), so copy that file (`cppmodel:documentation`).
-- **One export covers one execution.** To compare two runs, give `what_changed`'s `uiUrl`, which
-  overlays both, or make one export per run. Only an overlay across many runs, such as a sweep's
-  key signal over all runs, needs a chart of your own (`dataviz`).
+- **Compare runs on one chart.** A signal may come from another execution: `{label, executionId}`
+  for another run of this simulation, plus `simulationId` for a run of another simulation (a
+  measured `(field)` execution, a planned prediction, another use case). The same label from two
+  parameter variants, before and after a fix, or a prediction against a measurement, then share
+  one time axis, narrowed to the signals and window that matter, which `what_changed`'s overlay
+  can't do. The legend and CSV columns name each signal's execution (`Speed · #7568`), and
+  `parameters` are reported per execution as `<name> (#<id>)`; they must exist in the export's own
+  execution (`execution_id`). The 8-signal limit covers all of them, so one chart holds up to 8
+  runs of one signal. Only a chart no export draws, such as more runs than that or a metric per
+  run (a sweep's pass/fail map), needs a chart of your own (`dataviz`).
+
+  ```
+  export_signals {simulation: "CPidSystemSim", execution_id: "7568", format: "png",
+    signals: ["PlantOutput", {label: "PlantOutput", executionId: "7566"}, "Setpoint"],
+    parameters: ["Kp"], from: 0, to: 6000}
+  ```
 - **Don't fetch export links with curl or a script.** They need the user's login; the tools return
   the PNG and CSV themselves.
 - **Open a pasted link with `get_export`.** When the user pastes a `/snapshots/<id>` link, read it
@@ -256,7 +309,9 @@ So match the question to the tool:
 | the shape: overshoot, lag, oscillation, an interlock | `export_signals` `png`, and look at it |
 | whether it passed, where and why it failed, how close it came | the execution's `verification` (rules, `cppmodel:verification`): status, `violations`, `explanation`, margins |
 | why this run differs from an earlier one | `what_changed`: rebuilt or not, which parameters, which signals, in one small call |
-| a whole batch of one build | `get_binary_runs` with `summary` or `signals` |
+| a whole batch of one build, with each run's `expected` checked | `get_binary_runs` with `summary` or `signals` |
+| a metric, pass/fail or parameters across many runs (a sweep, a commit, picked ids) | `query_executions` with `reduce: "summary"` or `"steps"` |
+| which builds or commits ran | `list_builds` |
 
 - **Verification rules do the checking during the run.** A rule is checked every cycle by the
   library, and its outcome is stored with the execution: pass/fail, every violation interval, an
@@ -269,8 +324,8 @@ So match the question to the tool:
   then fetch only the series that matter. Fetching two whole executions to diff them yourself
   costs far more, and its `uiUrl` overlays both runs for the user anyway.
 - **Arithmetic over what the tools returned is fine**, such as a sweep's metric from fetched
-  series. A cross-run chart, which no export draws, is the one case for a chart of your own
-  (`dataviz`). Not fine: scripts that parse result files, resample, plot one execution, diff
+  series. A chart no export draws (more than 8 runs, or a metric per run) is the one case for a
+  chart of your own (`dataviz`). Not fine: scripts that parse result files, resample, plot one execution, diff
   executions, or re-check timings a rule could check.
 
 ## The workspace is part of the loop
@@ -312,7 +367,7 @@ by id later. So:
   sweep against an earlier sweep: `list_executions` finds them, `what_changed` says what differs
   between two of them, and `get_execution` fetches each by id, with `signals` for just the series
   being compared. A sweep or other batch of one build is
-  fetched with `get_binary_runs` instead. Two records with different `CppModel.BinaryFingerprint`
+  fetched with `get_binary_runs` instead, and many runs' metrics at once with `query_executions`. Two records with different `CppModel.BinaryFingerprint`
   came from different builds. Don't rebuild an old version to regenerate
   results the history already holds. Don't write scripts, extra tests, or extra printf/logging to
   collect data an execution already recorded.

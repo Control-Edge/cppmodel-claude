@@ -296,9 +296,11 @@ to a fault. Skip figures for a function whose behaviour a table says completely.
    2026-11-14).
    ```
 
-Never draw a figure yourself from exported values: the workspace chart is the evidence. A chart
-across several executions (for example a sweep's pass/fail boundary), which no export draws, is
-the one exception (`dataviz`, see `cppmodel:simulations`).
+Never draw a figure yourself from exported values: the workspace chart is the evidence. To show
+several runs together (before and after a change, the runs either side of a limit), export them on
+one chart: signals from other executions with `executionId` (see `cppmodel:simulations`' "Compare
+runs on one chart"), and link each execution beside the figure. A chart no export draws (more than
+8 runs, or a metric per run such as a sweep's pass/fail boundary) is the one exception (`dataviz`).
 
 ## Keeping evidence current
 
@@ -517,12 +519,28 @@ the documentation stays in the repository only. The `cppmodel` MCP server's tool
   `merge: true` and only the files that changed, and `remove` only files you put there. A full
   replace is right only when the upload is the complete set, such as the repository's whole
   `docs/` folder.
+- **A whole folder with figures goes up with the SDK, not through the tool.** Every image passed to
+  `upload_docs` travels as base64 through the conversation, which for a dozen PNGs costs hundreds of
+  thousands of tokens. With SDK 0.16.0+, publish the folder with a `CMODEL_DOCUMENT()` executable
+  instead: a one-line C file (`#include <cppmodel/CModel.h>` and `CMODEL_DOCUMENT()`) built like a
+  simulation, run as `<exe> --project <name> --docs <folder>` (an MkDocs project or plain Markdown
+  and images). It replaces the project's whole set, logs in with `.env` like a simulation, and
+  `--check` checks the folder without uploading or signing in. Run `--check` first. A project
+  that already has a `publish_docs`-style target uses it; otherwise offer to add one (it also lets
+  CI publish the documentation). Keep `upload_docs` for text-only changes and `merge` uploads.
 - **Upload the files as they are in the repository**, with their relative paths, and every figure
   the pages link to (`base64 -w0 docs/img/<file>.png` for its `base64`). Relative links between
   pages and to figures keep working. Execution and commit permalinks keep working too, since
   they're absolute. Relative links to source files outside the uploaded set
-  (`../../src/DoorController.c`) don't: leave them, the commit permalinks cover the reader there.
-  Anything other than the types above comes back in `skipped`: tell the user.
+  (`../../src/DoorController.c`) don't open in the workspace. `upload_docs` takes them, and the
+  commit permalinks cover the reader there. `CMODEL_DOCUMENT()`'s check rejects them ("points
+  outside the documentation folder") and uploads nothing, so for it upload a staged copy of the
+  folder with each such link rewritten to the permalink of that file at the evidence commit, and
+  keep the repository's own pages unchanged. Anything other than the types above comes back in
+  `skipped`: tell the user.
+- **Created or replaced**: `upload_docs`' result says `replaced: false` for a project's first
+  upload. Tell the user "created" then, and "replaced" only when there was a set before (the SDK
+  prints "a new project there" from 0.17.0).
 - **Navigation**: without `nav`, it follows the folder tree (`index.md` first, titles from each
   page's first `#` heading), and a merge keeps the current one and appends new pages. Pass `nav`
   (`[{title, path | url | children}]`, as `get_docs` shows it) when the user wants an order of
