@@ -227,11 +227,14 @@ was platform-dependent and could even be 0 for a failure).
   with the fast profile only".
 - **Metrics from the execution records.** Ask for them across the whole batch in one call where
   possible: `query_executions` with the sweep's `fingerprint` (and `simulations`, or a
-  `simulationPrefix` when one build's sweep spans several use-case simulations), the signals
+  `simulationPrefix` when one build's sweep spans several use-case simulations). Its first call
+  takes no `signals`: it then reads no signal data, so even a large batch comes back cheaply with
+  each run's swept `parameters` and its `verification.passed` and `verification.failedRules`
+  (enough for the pass/fail map), plus
+  `signalNames: true` when the labels aren't known yet. Then ask for the signals
   agreed in step 3, `reduce: "summary"` (first, last, min, max, time-weighted mean, optionally over
   a `from`/`to` window) or `"steps"` (one value per `CppModel.StepNumber` step), and
-  `parameters` set to the swept names, so each row is identified by its values. Each item also
-  has `passed` and its `failedRules`. Page with `offset` (`nextOffset`) and narrow the request if
+  `parameters` set to the swept names, so each row is identified by its values. Page with `offset` (`nextOffset`) and narrow the request if
   the result says `truncated`; with other runs of the same binary in the history, keep only the
   sweep's execution ids. For a metric those reductions don't give, fetch the series with
   `get_binary_runs` and `signals`. Series are change-compressed (`x` = the times the value
@@ -252,7 +255,9 @@ was platform-dependent and could even be 0 for a failure).
 
 Point the user at the web UI for any run they want to inspect: `get_binary_runs` gives the
 simulation's page as `uiUrl`, so name the run's fingerprint and index with it. For a link to one
-run, find its id with `list_executions`, whose items each have their own `uiUrl`. To show how two
+run, `query_executions` items each have their `uiUrl`; or find the run's id with
+`list_executions` and the sweep's `fingerprint`, where item `p` of a page is index
+`total - 1 - (offset + p)` (see `cppmodel:simulations`' "Runs of one build"). To show how two
 runs differ, `what_changed` with their ids gives the parameters that differ and a `uiUrl` that
 overlays both. For one run the user wants to see, such as the run at the boundary, export it as a
 `png` (`export_signals` with that run's execution id, see `cppmodel:simulations`' "Looking at

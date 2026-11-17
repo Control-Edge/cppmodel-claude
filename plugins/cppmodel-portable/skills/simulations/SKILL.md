@@ -40,7 +40,7 @@ an ad-hoc program instead, and never search the project for result files in thei
 |------|-----|
 | `list_simulations` | list simulations with execution counts, `lastExecutionAt` and its `gitHash` and `fingerprint`, and the newest run from a clean commit (`lastCommittedExecutionAt`, `lastCommittedGitHash`) (`scope: "team"` for the whole team; `sort` by `name`, `executions`, `lastExecution` or `lastCommittedExecution`; `order`; `tracking`: `committed`/`uncommitted`, see "Committed and uncommitted runs") |
 | `get_latest_result` | the latest execution: inputs, parameters, results |
-| `list_executions` | execution history, newest first, with id, time, status (up to 1000 per page) |
+| `list_executions` | execution history, newest first, with id, time, status and the build that ran each (`binaryFingerprint`, `gitHash`) (up to 1000 per page; `fingerprint` for one build's runs, see "Runs of one build") |
 | `get_execution` | one past execution by id, same shape as `get_latest_result` |
 | `what_changed` | what differs between two executions: code, parameters, signal names (see "Comparing runs") |
 | `export_signals` | a chart (PNG, returned as an image), CSV or JSON of up to 8 signals of one execution, or of several executions on one chart, with a `/snapshots/<id>` link for the user (see "Looking at signals") |
@@ -93,7 +93,9 @@ first to validate, and prefer a simulation name of its own (e.g. `<name> (field)
 simulated executions don't mix in one history. Pass `execution_time` (`DD-MM-YYYY HH:MM:SS`) when
 the data has a real start time; it defaults to now. Its `CppModel.BinaryFingerprint`, if given,
 must be a whole number, and its `CppModel.GitHash` a commit string; leave both out unless the data
-really came from that binary.
+really came from that binary. Other parameters may be numbers or text (a string, such as the
+machine's serial number or the log file's name); a posted `set_inputs` document still holds
+numbers only.
 
 `delete_simulation` removes the simulation with its entire execution history and any pending
 document, the same as deleting it in the UI. It can't be undone and affects everyone who uses that
@@ -120,16 +122,29 @@ many runs the build has (`count: 0` returns just that), and `nextStart` the next
 Use it for a batch run by one unchanged binary, such as a parameter sweep (whose `sweep.json`
 records its `fingerprint` and `start` index) or repeated runs of a test, instead of paging
 `list_executions` and guessing which ids belong together. It counts runs of the same binary by
-every user. Executions from older SDKs, or recorded before the server indexed fingerprints, aren't
-found; use `list_executions` for those.
+every user. Executions from SDKs before 0.7.0 have no fingerprint and aren't found; use
+`list_executions` for those. Executions stored before the server indexed fingerprints are indexed
+by a background pass when the server starts, so a build's oldest runs can be missing for a while
+(and then arrive at the lowest indices).
+
+Every `list_executions` item names the build that ran it (`binaryFingerprint`, a decimal string,
+and `gitHash`; `null` when it has none or isn't indexed yet), and with `fingerprint` it lists only
+that build's runs, newest first, with `total` their count. Item `p` (from 0) of a page is then
+`get_binary_runs` index `total - 1 - (offset + p)`: use it to find the execution id, and so the
+link, of a build's run by its index.
 
 `list_builds` finds the builds themselves, newest first: executions grouped by
 `CppModel.BinaryFingerprint` (`by: "fingerprint"`, the default) or by `CppModel.GitHash`
 (`by: "gitHash"`), across all simulations or only some (`simulations`, exact names, or
 `simulationPrefix`). Each row has the build's execution and simulation counts, its first and last
-execution ids and times, and `lastGitHash` (by fingerprint) or `lastFingerprint` (by commit).
-Filter by `fingerprint` to see which commits one binary ran with (a VirtualPLC build can span
-several), or by `gitHash` to see which builds ran one commit (a developer's machine and CI, say).
+execution ids and times, `lastGitHash` (by fingerprint) or `lastFingerprint` (by commit), and
+`simulationNames` (A-Z, at most 50; `simulations` is the full count). When the build ran a single
+simulation, `lastExecutionUiUrl` links its last run. With `by: "gitHash"`, `mergeDirty: true`
+puts a commit's `-dirty` runs in the group of its clean ones (keyed by the hash without `-dirty`),
+and `dirtyExecutions` counts them; open such a group with `query_executions` with `gitHash` and
+`includeDirty: true`. Filter by `fingerprint` to see which commits one binary ran with (a
+VirtualPLC build can span several), or by `gitHash` to see which builds ran one commit (a
+developer's machine and CI, say).
 Use it for "what did that commit run", "which builds ran today" or to find the fingerprint for
 `get_binary_runs` or `query_executions` without fetching an execution first.
 `list_simulations` also gives each simulation's newest `fingerprint`.
@@ -137,8 +152,8 @@ Use it for "what did that commit run", "which builds ran today" or to find the f
 From SDK 0.15.0, a run whose executable is inside a git repository also records
 `CppModel.GitHash`, the commit checked out when it started (e.g. `d6ebfd2`, with `-dirty` when a
 tracked file had uncommitted changes; untracked build output doesn't count), and prints it next to
-the fingerprint. It's the only parameter that is a string, and it's missing outside a repository
-or without git. It tells a run on a developer's machine from a CI run of the same commit at a
+the fingerprint. It's the only text (string) parameter a binary records (an execution recorded
+with `submit_execution` may have others), and it's missing outside a repository or without git. It tells a run on a developer's machine from a CI run of the same commit at a
 glance.
 
 ### Committed and uncommitted runs
@@ -181,10 +196,19 @@ and `offset`; `total` counts every match and `nextOffset` is where the next page
   `CppModel.StepNumber` by default: the value held just before the next step starts) or
   `"series"` (the change-compressed series cut to `from`..`to`; can be large).
 - `parameters`: the names to return, or `"*"` for all; one an execution lacks is `null`.
-- With `verification` (default `true`) each item has `passed` (every `CppModel.StepResult` was 1;
-  `null` without one), `failedRules`, `rulesPassed` and `rulesTotal`. Each item has its `uiUrl`.
+- With `verification` (default `true`) each item has `verification: {passed, failedRules,
+  rulesPassed, rulesTotal}` (`passed`: every `CppModel.StepResult` was 1; `null` without one).
+  Each item also has its `executionId`, `simulationId`, `fingerprint`, `gitHash`, `createdAt` and
+  `uiUrl`.
+- `signalNames: true` adds each run's input and result labels (no data), to find the exact labels
+  to ask for.
 - A result too big for the context is cut, and `truncated` says so: narrow the signals, the
   `reduce` or the page.
+
+**Without `signals` it reads no signal data**: parameters, pass/fail, failed rules and signal names
+are kept per execution when it is submitted. So for a large batch, first query it without
+`signals` (with `parameters` and, if the labels aren't known yet, `signalNames: true`), see which
+runs passed and which values they had, then ask for only the signals that question needs.
 
 Use it for a sweep's metric table (pass/fail, a peak, a final value, per parameter set) instead of
 paging `get_binary_runs` and computing the statistics yourself, and for "how did every simulation

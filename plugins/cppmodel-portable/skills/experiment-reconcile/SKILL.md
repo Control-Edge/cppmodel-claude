@@ -79,7 +79,8 @@ to the simulations, offer to record each identified attempt with the MCP server'
 (`field-<plan-id>`), never the planned or production one, so measured and simulated histories
 don't mix. Map operator-side channels to `inputs` and measured channels to `results` under the
 plan's signal names, with `x` in ms from the segment start, put the achieved run conditions in
-`parameters`, set `execution_time` to when the attempt started on the machine (`DD-MM-YYYY
+`parameters` (with the plan's run id, the log file and the machine as text parameters, so each
+attempt can be traced back to its log), set `execution_time` to when the attempt started on the machine (`DD-MM-YYYY
 HH:MM:SS`, from the log's time base when it's absolute), and leave out `CppModel.BinaryFingerprint`
 and `CppModel.StepResult` (its `passed` is then `null`). Call it with `dry_run` first. Do this only when the user asks or agrees; the local logs stay the source for this
 reconciliation either way. Once an attempt is recorded, one `export_signals` chart can put its
