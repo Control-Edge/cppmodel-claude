@@ -184,7 +184,14 @@ environment of its one command only, as `cppmodel:simulation-testing`'s "Build a
    **inputs**, under the controller's input names, and the run conditions
    (load, outreach) as **parameters**, so one binary serves every run and every later revision of
    the plan without a rebuild. It publishes as outputs every channel the field will log, under the
-   names the plan maps to the log channels.
+   names the plan maps to the log channels. Offer to publish, for each channel with a `tolerance`,
+   the band reconciliation will hold the machine to: `CppModel.Band.<simSignal>.min` / `.max` =
+   that output ∓ the tolerance (`abs`, or `rel` × |output|), with the tolerance read as a
+   parameter so a changed plan needs no rebuild. Named exactly like the channel's `simSignal`, the
+   band is drawn in its colour on every prediction's graph in the workspace UI. A known physical
+   or safety limit of the machine (a relief pressure, an end-stop) fits as a constant band the
+   same way. They are decoration only (`cppmodel:simulation-testing`, "Windows and bands on the
+   graph").
 2. **Run one execution per run** with `cppmodel:parameter-sweep`, using an explicit `runs` list:
    one sweep run per plan run, with that run's inputs and parameters. The sweep verifies every run
    used what was posted. Each prediction is an execution in the workspace history, which the plan

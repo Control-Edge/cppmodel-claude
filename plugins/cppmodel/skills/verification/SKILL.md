@@ -150,6 +150,39 @@ wrong:
 
 Register the simulation with `ctest` if it's new (`cppmodel:simulation-testing`, "Build and run").
 
+### Show the rules on the graph: windows and bands
+
+The workspace UI's graph draws two kinds of reserved outputs as decoration, not as signal lines:
+**time windows** (`CppModel.Window.<name>.active`, non-zero while open: a grey shaded area
+labelled `<name>`) and **tolerance bands** (`CppModel.Band.<name>.min` / `.max`: a filled band
+between both sides, or a dashed limit line for one side alone). A band whose `<name>` is exactly
+the label of an output or input of the run belongs to that signal: same colour, moves with its
+shift/scale, hidden with it. Otherwise it is grey. `cppmodel:simulation-testing`'s "Windows and
+bands on the graph" has the full naming rules.
+
+Offer to publish them for the rules you write, so whoever opens the execution's `uiUrl` sees what
+each rule allowed next to what the signal did, without reading the code:
+
+| Rule | Window | Band |
+| --- | --- | --- |
+| `Settle` | `CppModel.Window.<rule>.active` from each target change until the settle limit | `CppModel.Band.<value signal>.min/.max` = target ∓ band |
+| `Response` | `CppModel.Window.<rule>.active` from a trigger until its deadline (or the response) | - |
+| `Always` with `Between`/`AtMost`/`AtLeast`/`Near` | - (or the rule's scope, when it's only updated at some steps) | `CppModel.Band.<signal>.min` and/or `.max` = the limits |
+| `Mode` with `Dwell` | optionally, while the mode's min/max dwell is running | - |
+| `Rate`, `Oscillation`, `Wear`, `Energy`, `Percent` | the rule's `active` output, if it has one and it helps | - |
+
+- **Take the numbers from the rule's own settings**: the same named constants or parameters the
+  rule is constructed with, never retyped literals, so the drawing can't drift from the check.
+- **Decoration only.** Never read a window or band back into a rule, `CppModel.StepResult` or the
+  controller. They don't change pass/fail.
+- **Name windows after the rule** (requirement ID first, as the rule is), and **bands after the
+  exact signal label** they bound, so they tie to that signal. Two bands on one signal need
+  different names, and only the one named exactly like the signal is tied to it.
+- The SDK doesn't write these itself yet. Check the vendored headers for a helper (`Band(`,
+  `Window(`, `CppModel_setBand`, `CppModel_setWindow`) and use it if there is one; otherwise write
+  them as ordinary outputs every step. Older UIs hide every `CppModel.*` output, so they are
+  harmless there.
+
 ## 4. Prove that each rule can fail
 
 A rule that can't fail verifies nothing. A wrong signal, a wrong scope or a wrong sign passes
@@ -190,7 +223,9 @@ covered requirement IDs. Report from the recorded execution, through the `cppmod
   `CppModel.Verify.<name>` series around the `violations` interval (`export_signals`, see
   `cppmodel:simulations`' "Looking at signals"). `violations` are in seconds and `from`/`to` in
   ms, so multiply by 1000. Look at it, and give the snapshot link in the report row along with the
-  execution's `uiUrl`.
+  execution's `uiUrl`. If the simulation publishes the rule's band, add its `.min`/`.max` as
+  ordinary signals to the export so the limit shows in the PNG; the execution's `uiUrl` draws the
+  bands and windows themselves.
 - For a failure, `violations` gives the time; from there, follow
   `cppmodel:simulation-testing`'s "Debugging a failure". Don't loosen a threshold to make a run
   pass. A threshold changes only when the requirement changes, and the customer decides that.

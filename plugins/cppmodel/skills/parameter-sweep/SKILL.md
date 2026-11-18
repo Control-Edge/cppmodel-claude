@@ -132,6 +132,14 @@ user. It holds:
 Copied `CppModel.BinaryFingerprint` and `CppModel.GitHash` parameters can stay in the documents:
 `set_inputs` drops them with a warning, and the `expected` check skips `CppModel.` names.
 
+When the sweep looks for the point where a signal crosses a limit, offer to put that limit in
+every document as a constant band under `parameters`: `CppModel.Band.<signal>.max` (and/or
+`.min`), with `<signal>` the exact output label (`cppmodel:simulation-inputs`, step 3). Each run's
+graph in the workspace UI then shows the limit next to the signal. If the limit is itself a varied
+parameter, give each run's band that run's value. The band is decoration: it changes neither the
+run nor its pass/fail, the `expected` check skips it, and `set_inputs` warns about the reserved
+prefix, which is expected.
+
 Then call `set_inputs` with `dry_run: true` on one document that contains every varied name. Treat
 every `unrecognizedNames` entry as a typo until the source proves otherwise, and fix it in every
 document. Show the user the run list before running anything.
@@ -249,7 +257,9 @@ was platform-dependent and could even be 0 for a failure).
   both sides show roughly where to aim it. Still confirm the boundary with runs.
 - For a visual comparison, overlay the key signal of up to 8 runs (the boundary's neighbours, say)
   in one export: `export_signals` with each run's signal as `{label, executionId}` (see
-  `cppmodel:simulations`' "Compare runs on one chart"), look at it, and give its link. Only more
+  `cppmodel:simulations`' "Compare runs on one chart"), look at it, and give its link. The export
+  doesn't draw bands: a limit published as band outputs goes in as an ordinary signal, and one
+  from band parameters only in the caption (`parameters`). Only more
   runs than that, or a metric per run such as the pass/fail map, needs a chart of your own: load
   the `dataviz` skill before drawing it.
 

@@ -504,6 +504,24 @@ Both fields are left out when the run has no rules or names no requirement.
 
 For "why did it fail", read `verification` before fetching any series.
 
+**Graph decoration: windows and bands.** A run may also carry `CppModel.Window.<name>.active`
+outputs (time windows, open while non-zero) and `CppModel.Band.<name>.min` / `.max` outputs or
+parameters (tolerance bands and limits; a band named exactly like a signal belongs to it). The
+workspace UI draws them as shaded windows and bands on the execution's graph
+(`cppmodel:simulation-testing`, "Windows and bands on the graph"). Treat them as decoration, not
+behaviour:
+
+- Leave them out of signal summaries and comparisons, as every `CppModel.*` signal: a band that
+  appears or disappears in `what_changed` is a change to the drawing, not to what the system did.
+- They do say what a check allowed: a band's edges are the limits its signal was held to, and a
+  window the time a deadline or settle limit allowed. Use them to read a failure, not as a verdict
+  (that's `verification` and `CppModel.StepResult`).
+- `export_signals` doesn't draw them as bands or shaded areas (yet). To see a limit in a PNG, add
+  a band's `.min`/`.max` outputs as ordinary signals next to the signal they bound (a band from
+  parameters can only go in the caption, via `parameters`), and a window's
+  `.active` as a 0/1 flag (scaled to sit readably). The execution's `uiUrl` shows them as intended;
+  give it with the export.
+
 Whose inputs the `inputs` are depends on what the simulation runs (see
 `cppmodel:simulation-testing`'s "which side is being simulated" note). For a plant-alone
 simulation they are the plant's inputs (actuator commands) and outputs are its sensor readings.

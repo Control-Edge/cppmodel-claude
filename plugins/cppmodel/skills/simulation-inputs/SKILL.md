@@ -100,7 +100,8 @@ Use two sources:
 
 Each name goes where the code reads it: `getInput` names under `inputs`, `getParameter` names
 under `parameters`. Posting a name in the wrong section is the same as not posting it. Keys
-starting with `CppModel.` are reserved (see step 3).
+starting with `CppModel.` are reserved (see step 3); only the graph's band parameters are worth
+adding.
 
 Then settle whose inputs they are (`cppmodel:simulation-testing`'s "which side is being
 simulated"):
@@ -171,6 +172,15 @@ Parameters:
 - `CppModel.BinaryFingerprint` and `CppModel.GitHash` (SDK 0.15.0+, the one string), copied
   along with a record's parameters, are left out by `set_inputs` with a warning: each run records
   its own. That warning is expected.
+- `CppModel.Band.<name>.min` / `.max` are the one kind of reserved parameter worth adding
+  yourself: a constant limit or safe range the workspace UI draws on the graph (a filled band, or
+  a dashed line for one side), tied to the signal labelled exactly `<name>`, e.g.
+  `"CppModel.Band.Motor Current.max": 12.5`. The run records them although the code never reads
+  them, so they need no rebuild. They are decoration: they don't change the run or its pass/fail,
+  and an output band of the same name in the simulation wins over them
+  (`cppmodel:simulation-testing`, "Windows and bands on the graph"). Offer one when the user names
+  a limit to watch. `set_inputs` warns that the name uses the reserved prefix; that warning is
+  expected for these.
 
 Check the document before posting:
 

@@ -166,6 +166,45 @@ a mode sequence, no oscillation), use rules and `VerifyRequirement` through
 execution, with its violation intervals, an explanation and a margin, so a failure needs one read
 to understand instead of a trace analysis.
 
+### Windows and bands on the graph
+
+Every output or parameter whose name contains `CppModel.` is a system signal: the workspace UI
+never plots it as a line or lists it in the legend. Two reserved patterns are drawn as decoration
+on the graph instead, so a reader sees the time a check allows and the range a signal must stay
+in:
+
+- **Time window**: output `CppModel.Window.<name>.active`, non-zero (and finite) while open; 0,
+  NaN or ±Inf is closed. Each open stretch is a grey shaded area labelled `<name>`. A parameter
+  with this name is ignored.
+- **Tolerance band / limit**: `CppModel.Band.<name>.min` and `CppModel.Band.<name>.max`, each an
+  output (a limit that changes over time) or a parameter (constant for the whole run). Both sides:
+  a filled band; one side: a dashed limit line. An output wins over a parameter of the same name,
+  and the two sides may be different kinds.
+- **Tied to a signal** when `<name>` is exactly (case and spaces included) the label of an output
+  or input of the same run: drawn in its colour, moved by its shift/scale, hidden with it.
+  Otherwise grey and always shown. One band per name.
+- The prefixes and suffixes match regardless of case; `<name>` is kept as written, may contain
+  dots and spaces, and must not be empty. Any other suffix is ignored (and not plotted).
+
+```cpp
+outputs["CppModel.Window.accel window.active"] = inWindow && accelerating ? 1 : 0;
+outputs["CppModel.Band.Actual Velocity.min"] = requested - tolerance;   // tied to "Actual Velocity"
+outputs["CppModel.Band.Actual Velocity.max"] = requested + tolerance;
+```
+
+```c
+CppModel_setOutputU8(self, "CppModel.Window.settle window.active", inWindow);
+CppModel_setOutputF64(self, "CppModel.Band.Temperature.max", TEMP_MAX);
+```
+
+Use them for what a check allows: a deadline or settle window, a target ± band, a safe operating
+range. With verification rules, `cppmodel:verification` ("Show the rules on the graph") says which
+to publish per rule. Take the values from the same constants the check uses. They are decoration:
+never read them back into pass/fail or the controller. A constant range can also come from
+parameters in an `--inputs` document without rebuilding (`cppmodel:simulation-inputs`). The SDK
+doesn't write them itself yet; if the vendored headers have a helper (`Band(`, `Window(`,
+`CppModel_setBand`), use it instead of hand-typed names.
+
 ### C++
 
 From SDK 0.13.0, the library schedules steps itself (its `documentation/Steps.md`):

@@ -257,7 +257,12 @@ to a fault. Skip figures for a function whose behaviour a table says completely.
    most 4-5 signals, `from`/`to` cut to the part that matters, `scale`/`yOffset` to bring signals
    onto one readable axis, `xOffset` to line a response up with its command, and the parameters
    that matter as `parameters` (they become the caption). A width of about 1200 px reads well in
-   a page.
+   a page. When the text states a limit or tolerance and the run publishes it as a band
+   (`CppModel.Band.<signal>.min` / `.max` outputs, `cppmodel:simulation-testing`'s "Windows and
+   bands on the graph"), add those outputs as ordinary signals, counted in the 4-5, so the figure
+   shows the limit: `export_signals` doesn't draw bands or windows. A band from parameters goes in
+   the caption through `parameters`. The execution link in the caption shows bands and windows as
+   the workspace UI draws them.
 3. **Look at it** and check it shows what the text says. If not, the text or the choice of run is
    wrong: fix that, never the figure.
 4. **Save the image next to the documentation**, as `docs/img/<function>-<case>.png` (or the

@@ -87,7 +87,13 @@ reconciliation either way. Once an attempt is recorded, one `export_signals` cha
 measured channel next to the as-run prediction (a signal from the field execution as `{label,
 executionId, simulationId: "field-<plan-id>"}`, see `cppmodel:simulations`' "Compare runs on one
 chart"), giving teammates a link to that comparison. It doesn't replace the reconciliation page,
-which also shows the tolerance band and the planned prediction.
+which also shows the tolerance band and the planned prediction. Once the as-run prediction exists
+(step 4), the attempt's execution can carry that band too: per channel, the outputs
+`CppModel.Band.<channel>.min` / `.max` = as-run prediction ∓ the plan's `tolerance`, on the
+prediction's time points, named exactly like the measured channel so the workspace UI draws the
+band in its colour behind it (`cppmodel:simulation-testing`, "Windows and bands on the graph").
+`submit_execution` warns about the reserved prefix; that's expected. Mention in the attempt's
+parameters which as-run execution the band came from.
 
 ## 1. Read the logs
 
