@@ -316,6 +316,18 @@ old headers include `cppmodel.hpp`, and `CppModelBase`/`CppModelLib` are namespa
   - **An execution over the workspace's 100 MB limit** (its JSON, uncompressed) is no longer sent:
     the run fails with its size, series and point count. If a simulation hits it, offer fewer
     recorded signals, a coarser step, a shorter run or splitting it.
+- 0.18.0 (release notes): nothing existing changes, so nothing needs fixing. New:
+  - **Verification rules record what they check** (`CppModel.Verifier.<rule>.*` outputs and an
+    `overlays` field in each outcome), so the workspace and PNG exports draw them. Existing rules
+    do this without any change. Offer, without pushing, `Limits()` on `Always` rules and
+    `Signal()` on step rules so they draw fully, and point out hand-written `CppModel.Window.*` /
+    `CppModel.Band.*` outputs that only repeat a rule's range or deadline: they can go
+    (`cppmodel:verification`, "Show the rules on the graph"). Ask before removing any. A very long
+    run gets more series; `Visual(false)` keeps a rule to its verdict.
+  - **The `Tracking` rule** checks a signal against a moving reference over the whole run.
+  - **gprintf** (`gprintf.h` for C, `cppmodel::gprintf`/`cppmodel::Stream` in C++, `gprintf`/`Stream`
+    in Python and Node) sends values from code that is already running to live graphs in the
+    workspace's Streams view (`cppmodel:gprintf`).
 
 ## 7. Fix call sites: mechanical changes now, ambiguous ones stop and ask
 

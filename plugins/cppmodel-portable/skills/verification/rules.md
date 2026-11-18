@@ -1,4 +1,4 @@
-# Verification rules: API reference (SDK 0.11.0)
+# Verification rules: API reference (SDK 0.11.0+; 0.18.0 additions marked)
 
 Seconds for every time setting. `NaN` (C/C++) or `None`/`null` (Python/Node) means "any mode" in
 `Allow`, and "not checked" in `Dwell`, `Settle`'s overshoot and `Wear`'s limits. Check the project's
@@ -57,8 +57,12 @@ Semantics worth remembering:
 | Rate | `Rate{*this, name, signal, maxRate, active}` | `CppModel_ruleRate(self, name, signal, active, maxRate)` |
 | Energy | `Energy{*this, name, signal, factor, budget, active}` | `CppModel_ruleEnergy(self, name, signal, active, factor, budget)` |
 | Percent | `Percent{*this, name, signal, minPercent, active}` | `CppModel_rulePercent(self, name, signal, active, minPercent)` |
+| Tracking (0.18.0+) | `Tracking{*this, name, signal, reference, absTol, relTol = 0, lagging_s = 0, leading_s = 0, active}` | `CppModel_ruleTracking(self, name, signal, reference, active, absTol, relTol, lagging_s, leading_s)` |
 
 Node's `Wear` takes an options object: `{maxReversalsPerHour, maxTravelPerHour, deadband, active}`.
+Python: `Tracking(sim, name, signal, reference, abs_tol, rel_tol=0.0, lagging_s=0.0, leading_s=0.0,
+active=None)`. Node: `new verify.Tracking(sim, name, signal, reference, {absTol, relTol, laggingS,
+leadingS, active})`.
 
 | Rule | Margin | Failing steps |
 | --- | --- | --- |
@@ -67,8 +71,40 @@ Node's `Wear` takes an options object: `{maxReversalsPerHour, maxTravelPerHour, 
 | Rate | `rate` | every step faster than the limit |
 | Energy | `energy` | from where the budget is used up (integral per second × `factor`) |
 | Percent | `percent` | from where even an all-good rest of the run can't reach `minPercent` |
+| Tracking | `value`: the closest the signal came to the tube's edge (< 0: outside by that much) | every step outside the tube, `leading_s` late |
+
+**Tracking's tube**: at time t, the lowest and highest value of `reference` over
+`[t - lagging_s, t + leading_s]`, each side widened by `max(absTol, relTol × |that value|)`.
+Metrics: `worst_deviation`, `worst_at_s`, `outside_s`, `checked_s`, `excursions`, `signal`,
+`reference`. A reference that is never there is an error, like a missing signal.
 
 `Energy` with a kW signal and `factor = 1.0 / 3600` gives kWh.
+
+## Presentation (SDK 0.18.0+)
+
+Only change what the workspace draws; the updates and signals still decide pass/fail.
+
+| What | C++ | C | Python / Node |
+| --- | --- | --- | --- |
+| the signal an `Always` bounds, and its limits | `rule.Limits(signal, min, max = none)` (chainable) | `CppModel_alwaysLimits(r, signal, min, max)` (`NAN`: no such side) | `rule.limits(signal, min=None, max=None)` / `rule.limits(signal, min, max)` |
+| step rules: the output (or input) showing what the rule checks | `rule.Signal(name)` | `CppModel_ruleSignal(r, name)` | `rule.signal(name)` |
+| record only the verdict (no verifier signals, no `overlays`) | `rule.Visual(false)` | `CppModel_ruleVisual(r, 0)` | `rule.visual(False)` / `rule.visual(false)` |
+
+`Signal()` on a signal rule is an error (it reads its own signal). A name that is no output or input
+of the run prints a warning at the end of the run.
+
+**Verifier signals**: outputs `CppModel.Verifier.<name>.<field>`, hidden from the legend like every
+`CppModel.*` output.
+
+| Field | Meaning | Written by |
+| --- | --- | --- |
+| `status` | 1 passed the step, 0 failed it, -1 didn't apply | every rule |
+| `min`, `max` | the allowed range | `Always` with `Limits`, `Settle` (target ± band), `Tracking` (the tube) |
+| `target` | the desired value | `Settle` |
+| `window` | 1 while the time allowance is open | `Response` (deadline), `Settle` (settle limit) |
+| `mode` | the current mode | `Mode` |
+
+An output the simulation records itself under the same name is kept instead.
 
 ## Verdict so far, requirements
 
@@ -105,6 +141,12 @@ returns under `verification`):
 
 `status` is `pass`, `fail` or `error` (a signal rule's signal was never there). `violations` are
 time intervals in seconds.
+
+From SDK 0.18.0 a visual rule's outcome also has `overlays`: `fields` (the verifier signals it
+wrote), `signal` (the checked signal: a signal rule's own, or a step rule's `Signal()`/`Limits()`
+signal), `reference` (`Tracking`'s), `markers` (point events such as a response, the settling
+point, the worst point, an illegal transition, each with its `label`, `time_s`, `value` and `pass`) and
+`badge` (the metric to show next to the rule). The first seven fields are always there.
 
 ## Requirement coverage: `requirements` and `cppmodel-requirements.json`
 

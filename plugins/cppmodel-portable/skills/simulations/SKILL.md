@@ -1,6 +1,6 @@
 ---
 name: simulations
-description: "Query CppModel Workspace API results - list simulations (sorted by name, latest run, latest committed run or execution count; or only those whose latest run was, or wasn't, committed), fetch the latest results, list execution history, see what changed between two runs (code, parameters, signals), list the builds (fingerprint or commit) that ran, or get chosen signals' statistics, per-step values and pass/fail across many executions at once (a sweep, a commit), with web UI links. Exports signals of one execution, or several runs on one chart, as an image to look at or a CSV, with a link for the user. Every run is submitted to the workspace, and its history is how runs are compared. Use when asked about CppModel simulation results, executions, how a run compares with an earlier one or what changed, the Workspace API, \"show me / plot / chart the signals\", \"look at the trace\", \"what did I run last\", \"what isn't committed yet\", or a pasted `/snapshots/` link, in a project that uses the CppModel libraries."
+description: "Query CppModel Workspace API results - list simulations (by name, latest run, latest committed run or execution count; or only committed/uncommitted ones), fetch the latest results, list execution history, see what changed between two runs (code, parameters, signals), list the builds (fingerprint or commit) that ran, or get signal statistics, per-step values and pass/fail across many executions (a sweep, a commit), with web UI links. Exports signals of one execution, or several runs on one chart, as an image (optionally with its verification rules drawn, to spot where one failed) or a CSV, with a link for the user. Every run is in the workspace; its history is how runs are compared. Use when asked about CppModel simulation results, executions, how a run compares with an earlier one or what changed, the Workspace API, \"show me / plot / chart the signals\", \"look at the trace\", \"what did I run last\", \"what isn't committed yet\", or a pasted `/snapshots/` link, in a project that uses the CppModel libraries."
 ---
 
 ## Reading notes
@@ -43,7 +43,7 @@ an ad-hoc program instead, and never search the project for result files in thei
 | `list_executions` | execution history, newest first, with id, time, status and the build that ran each (`binaryFingerprint`, `gitHash`) (up to 1000 per page; `fingerprint` for one build's runs, see "Runs of one build") |
 | `get_execution` | one past execution by id, same shape as `get_latest_result` |
 | `what_changed` | what differs between two executions: code, parameters, signal names (see "Comparing runs") |
-| `export_signals` | a chart (PNG, returned as an image), CSV or JSON of up to 8 signals of one execution, or of several executions on one chart, with a `/snapshots/<id>` link for the user (see "Looking at signals") |
+| `export_signals` | a chart (PNG, returned as an image), CSV or JSON of up to 8 signals of one execution, or of several executions on one chart, with a `/snapshots/<id>` link for the user; on newer servers the chart also draws the run's windows and bands, and the verification rules named in `verifiers` (see "Looking at signals") |
 | `get_export` | an export again, by id or `/snapshots/<id>` link, in any format |
 | `get_binary_runs` | the runs of one simulation by one build, by run index, each with `passed` (see "Runs of one build") |
 | `list_builds` | the builds that ran simulations, newest first, grouped by fingerprint or by commit (see "Runs of one build") |
@@ -253,8 +253,9 @@ export of up to 8 signals of one execution, plus chosen parameters, and returns 
   signals at given times or computing a metric. The table is the result's `csv` field (CRLF line
   ends). Above 256 KiB it is cut at a row boundary and `csvTruncated` says so; narrow the export.
 - `json`: the series `{label, source, scale, xOffset, yOffset, x, y}` with the range and transforms
-  applied, change-compressed, plus `parameters`. For the raw series, `get_execution` with `signals`
-  works as well.
+  applied, change-compressed, plus `parameters`. On newer servers it also carries what the chart
+  draws besides the signals (windows, bands, the requested verifiers; times in ms). For the raw
+  series, `get_execution` with `signals` works as well.
 - `none`: only the link.
 
 ```
@@ -300,6 +301,38 @@ export_signals {simulation: "CPidSystemSim", format: "png",
     signals: ["PlantOutput", {label: "PlantOutput", executionId: "7566"}, "Setpoint"],
     parameters: ["Kp"], from: 0, to: 6000}
   ```
+- **Draw the verification rules: `verifiers`.** To see where and how a rule judged the run, name
+  it in `verifiers` (up to 8 names, exactly as keys of the execution's `verification`; unknown
+  names are rejected). Each is drawn as the workspace's results page shows a rule: its allowed
+  range as a band, its target, its time windows (a deadline, a settle limit), a status lane under
+  the plot (green passed, red failed), a mode lane for a `Mode` rule, the stretches where it
+  failed shaded, its markers (a response, the settling point, the worst point, an illegal
+  transition) and its badge metric. **Export the rule's checked signal too** (the outcome's
+  `overlays.signal`, and `overlays.reference` for `Tracking`): it is then drawn bolder, red where
+  the rule failed, with the markers on it. A signal from another execution doesn't count as the
+  checked one. This is the quickest way to spot a failure: one PNG shows what the rule allowed,
+  what the signal did, and where they parted.
+
+  ```
+  export_signals {simulation: "TankLevelSim", execution_id: "8120", format: "png",
+    signals: ["Tank.Level", "Tank.Setpoint", "Pump.Command"],
+    verifiers: ["TANK-PERF-002 level settles"], from: 110000, to: 160000}
+  ```
+
+  The drawing needs rules from SDK 0.18.0+ (they record what they check; `cppmodel:verification`,
+  "Show the rules on the graph"). An older run's rule is still drawn from its violations and
+  outcome, with less detail. The same applies to the run's own **windows and bands**
+  (`CppModel.Window.*`, `CppModel.Band.*`, see "Interpreting input/output signals"): a newer
+  server draws them as the web UI does, a band named after an exported signal in that signal's
+  colour and transform; a band of a signal left out of the export isn't drawn.
+
+  `verifiers` is new. Use it even when your tool definition of `export_signals` doesn't list it:
+  a session connected before the server was updated keeps the old definition, while the server
+  already accepts the field. Only when the server rejects `verifiers` (an older server), draw
+  without it: add a published band's `.min`/`.max` outputs, a rule's
+  `CppModel.Verify.<name>` (0/1, scaled to sit readably) and its `CppModel.Verifier.<name>.min` /
+  `.max` / `.status` outputs (SDK 0.18.0+) as ordinary signals, put a band from parameters in the
+  caption (`parameters`), and give the execution's `uiUrl`, which draws everything as intended.
 - **Don't fetch export links with curl or a script.** They need the user's login; the tools return
   the PNG and CSV themselves.
 - **Open a pasted link with `get_export`.** When the user pastes a `/snapshots/<id>` link, read it
@@ -332,6 +365,7 @@ So match the question to the tool:
 | values at given times, or a table to compute a metric from | `export_signals` `csv`, cut with `from`/`to` |
 | the shape: overshoot, lag, oscillation, an interlock | `export_signals` `png`, and look at it |
 | whether it passed, where and why it failed, how close it came | the execution's `verification` (rules, `cppmodel:verification`): status, `violations`, `explanation`, margins |
+| where a rule failed, at a glance | `export_signals` `png` with the rule in `verifiers` and its checked signal in `signals` |
 | why this run differs from an earlier one | `what_changed`: rebuilt or not, which parameters, which signals, in one small call |
 | a whole batch of one build, with each run's `expected` checked | `get_binary_runs` with `summary` or `signals` |
 | a metric, pass/fail or parameters across many runs (a sweep, a commit, picked ids) | `query_executions` with `reduce: "summary"` or `"steps"` |
@@ -491,7 +525,15 @@ rule:
 - under `verification`, keyed by rule name, its outcome: `kind`, `status` (`pass`/`fail`/`error`),
   `pass`, `margins` (> 0 headroom, < 0 missed by that much, in the signal's units or seconds),
   `metrics`, `violations` (time intervals in **seconds**, not ms) and `explanation`;
-- the output series `CppModel.Verify.<name>`: 1 until the rule first fails, then 0.
+- the output series `CppModel.Verify.<name>`: 1 until the rule first fails, then 0;
+- from SDK 0.18.0, the rule's **verifier signals** `CppModel.Verifier.<name>.<field>`: `status` (every
+  rule: 1 passed the step, 0 failed it, -1 didn't apply), `min`/`max` (the allowed range: `Settle`'s
+  target ± band, `Tracking`'s tube, `Always`'s limits when given), `target` (`Settle`), `window` (1
+  while `Response`'s deadline or `Settle`'s settle limit runs) and `mode` (`Mode`), and in its outcome
+  an `overlays` object: `fields` (which of those it wrote), `signal` (the checked signal),
+  `reference` (`Tracking`'s), `markers` (point events: a response, the settling point, the worst point, an illegal
+  transition, each with its `label`, `time_s`, `value` and `pass`) and `badge` (the metric worth showing next to the rule). A rule set not to be visual
+  records only its verdict and has no `overlays`.
 
 SDK 0.11.0 stored each outcome as the parameter `CppModel.Verify.<name>` instead; the MCP server
 moves those into `verification`, so every execution reads the same.
@@ -504,23 +546,23 @@ Both fields are left out when the run has no rules or names no requirement.
 
 For "why did it fail", read `verification` before fetching any series.
 
-**Graph decoration: windows and bands.** A run may also carry `CppModel.Window.<name>.active`
+**Graph decoration: verifier signals, windows and bands.** Besides the verifier signals above, a
+run may carry `CppModel.Window.<name>.active`
 outputs (time windows, open while non-zero) and `CppModel.Band.<name>.min` / `.max` outputs or
 parameters (tolerance bands and limits; a band named exactly like a signal belongs to it). The
 workspace UI draws them as shaded windows and bands on the execution's graph
 (`cppmodel:simulation-testing`, "Windows and bands on the graph"). Treat them as decoration, not
 behaviour:
 
-- Leave them out of signal summaries and comparisons, as every `CppModel.*` signal: a band that
-  appears or disappears in `what_changed` is a change to the drawing, not to what the system did.
+- Leave them out of signal summaries and comparisons, as every `CppModel.*` signal: a band or a
+  `CppModel.Verifier.*` series that appears or disappears in `what_changed` is a change to the
+  drawing (a new SDK, a rule made visual or not), not to what the system did.
 - They do say what a check allowed: a band's edges are the limits its signal was held to, and a
   window the time a deadline or settle limit allowed. Use them to read a failure, not as a verdict
   (that's `verification` and `CppModel.StepResult`).
-- `export_signals` doesn't draw them as bands or shaded areas (yet). To see a limit in a PNG, add
-  a band's `.min`/`.max` outputs as ordinary signals next to the signal they bound (a band from
-  parameters can only go in the caption, via `parameters`), and a window's
-  `.active` as a 0/1 flag (scaled to sit readably). The execution's `uiUrl` shows them as intended;
-  give it with the export.
+- To see them in a PNG, export the signals they belong to, and the rules by name in `verifiers`
+  ("Looking at signals"). If the server rejects `verifiers`, add them as ordinary signals instead,
+  as described there. The execution's `uiUrl` shows them as intended; give it with the export.
 
 Whose inputs the `inputs` are depends on what the simulation runs (see
 `cppmodel:simulation-testing`'s "which side is being simulated" note). For a plant-alone

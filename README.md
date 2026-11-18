@@ -20,8 +20,9 @@ A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
   gets chosen signals' statistics, per-step values and pass/fail for many executions in one call,
   such as a sweep table across several use-case simulations. Chosen signals of one execution, or
   of several runs on one chart, can be exported as a chart the agent looks at, or
-  as a CSV, with a snapshot link (valid for 7 days) so you see the same chart. Results come with
-  links into the workspace web UI.
+  as a CSV, with a snapshot link (valid for 7 days) so you see the same chart. A chart can draw
+  the run's verification rules (allowed range, status lane, where each failed, markers), so a
+  failure shows at a glance. Results come with links into the workspace web UI.
 - **`cppmodel:simulation-inputs`** - run a simulation with specific inputs (time series) and
   parameters (constants) without editing or rebuilding it. Finds the exact names the simulation
   reads, validates the document, and passes it to the binary with `--inputs` (SDK 0.10.0+; older
@@ -47,10 +48,16 @@ A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
   against the same logs, and recommends promoting, planning again, or re-tuning the controller.
 - **`cppmodel:verification`** - turns a controller's requirements into the SDK's verification
   rules (`Always`, `Response`, `Settle`, `Mode`, `Oscillation`, `Wear`, `Rate`, `Energy`,
-  `Percent`, SDK 0.11.0+) and requirement coverage (`VerifyRequirement`). It confirms the
+  `Percent`, SDK 0.11.0+; `Tracking`, 0.18.0+) and requirement coverage (`VerifyRequirement`).
+  From SDK 0.18.0 the rules record what they check, so the workspace and exported charts draw
+  them. It confirms the
   requirement-to-rule mapping with you before writing code, proves each rule can fail, and reports
   each rule's outcome and margin from the recorded execution. It then builds a coverage matrix from
   `cppmodel-requirements.json`: covered, gaps, unknown IDs, and what isn't verifiable by simulation.
+- **`cppmodel:gprintf`** - adds gprintf, the SDK's "visual printf" (0.18.0+), to code that is
+  already running (a bench program, a rig, a script), so chosen values show up as live graphs in
+  the workspace's Streams view. Covers C, C++, Python and Node, naming the stream, and turning it
+  off in production and CI.
 - **`cppmodel:coding-standard`** - when controller (production) code is written or changed, offers
   MISRA C/C++ or the project's own standard. MISRA is licensed per user, so it works from your own
   copy of the rules (a path to your PDF or rule-texts file), never from general knowledge. It never
@@ -180,6 +187,7 @@ files in its place); when it can't be reached, they stop and help fix the login 
 - `plugins/cppmodel/scripts/detect-environment.sh` / `.ps1` - read-only probes the setup skill runs
   to report OS, architecture, C library, compilers, tools, and the currently published SDK builds
 - `plugins/cppmodel/skills/simulation-inputs/SKILL.md` - the inputs/parameters skill
+- `plugins/cppmodel/skills/gprintf/SKILL.md` - the live-graphs (gprintf) skill
 - `plugins/cppmodel/skills/parameter-sweep/SKILL.md` - the sweep skill
 - `plugins/cppmodel/skills/experiment-design/SKILL.md` - the field experiment-plan skill, with
   `plan-format.md`, the plan format reconciliation reads

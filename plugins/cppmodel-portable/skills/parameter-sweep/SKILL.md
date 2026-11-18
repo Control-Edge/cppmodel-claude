@@ -272,9 +272,12 @@ was platform-dependent and could even be 0 for a failure).
   both sides show roughly where to aim it. Still confirm the boundary with runs.
 - For a visual comparison, overlay the key signal of up to 8 runs (the boundary's neighbours, say)
   in one export: `export_signals` with each run's signal as `{label, executionId}` (see
-  `cppmodel:simulations`' "Compare runs on one chart"), look at it, and give its link. The export
-  doesn't draw bands: a limit published as band outputs goes in as an ordinary signal, and one
-  from band parameters only in the caption (`parameters`). Only more
+  `cppmodel:simulations`' "Compare runs on one chart"), look at it, and give its link. Bands and
+  rules are drawn for the export's own execution only (`execution_id`): make it the failing run at
+  the boundary and name its failed rules in `verifiers`, so the chart shows where it left the
+  allowed range next to the passing neighbours. If the server rejects `verifiers`, a limit published
+  as band outputs goes in as an ordinary signal, and one from band parameters only in the caption
+  (`parameters`). Only more
   runs than that, or a metric per run such as the pass/fail map, needs a chart of your own: load
   the `dataviz` skill before drawing it.
 
@@ -285,8 +288,8 @@ run, `query_executions` items each have their `uiUrl`; or find the run's id with
 `total - 1 - (offset + p)` (see `cppmodel:simulations`' "Runs of one build"). To show how two
 runs differ, `what_changed` with their ids gives the parameters that differ and a `uiUrl` that
 overlays both. For one run the user wants to see, such as the run at the boundary, export it as a
-`png` (`export_signals` with that run's execution id, see `cppmodel:simulations`' "Looking at
-signals"), look at it, and give its link.
+`png` (`export_signals` with that run's execution id and, for a failed run, its failed rules in
+`verifiers`, see `cppmodel:simulations`' "Looking at signals"), look at it, and give its link.
 
 ## 8. Follow-ups worth offering
 

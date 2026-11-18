@@ -213,8 +213,10 @@ CppModel_setOutputF64(self, "CppModel.Band.Temperature.max", TEMP_MAX);
 ```
 
 Use them for what a check allows: a deadline or settle window, a target ± band, a safe operating
-range. With verification rules, `cppmodel:verification` ("Show the rules on the graph") says which
-to publish per rule. Take the values from the same constants the check uses. They are decoration:
+range. Verification rules from SDK 0.18.0 draw their own range, windows and status
+(`CppModel.Verifier.*`, written by the library); give an `Always` rule `Limits()` and step rules
+`Signal()` instead of repeating them as bands (`cppmodel:verification`, "Show the rules on the
+graph"). Hand-written windows and bands are for what no rule states, or for older SDKs. Take the values from the same constants the check uses. They are decoration:
 never read them back into pass/fail or the controller. A constant range can also come from
 parameters in an `--inputs` document without rebuilding (`cppmodel:simulation-inputs`). The SDK
 doesn't write them itself yet; if the vendored headers have a helper (`Band(`, `Window(`,
@@ -515,6 +517,9 @@ Workflow:
    the execution's `verification` instead: each failed rule's outcome gives its `explanation` and
    all its `violations` (time intervals in seconds), and its output series
    `CppModel.Verify.<name>` drops to 0 where it first failed. See `cppmodel:verification`.
+   To see them, export one `png` with the failed rules in `verifiers` and their checked signals
+   (`cppmodel:simulations`, "Looking at signals"): each rule's range, status lane and failing
+   stretches are drawn on the signal, so every failure shows on one chart.
    If an earlier run passed, `what_changed` between the two (`cppmodel:simulations`) says first
    whether the code, a parameter or the set of signals changed.
 2. For each failure, cross-reference the step number's transitions to identify which step

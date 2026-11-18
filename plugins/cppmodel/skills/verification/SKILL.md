@@ -1,6 +1,6 @@
 ---
 name: cppmodel:verification
-description: Turn a controller's requirements into CppModel verification rules (Always, Response, Settle, Mode, Oscillation, Wear, Rate, Energy, Percent) and requirement coverage (VerifyRequirement / CppModel_verifyRequirement) in a simulation, prove each rule can fail, read the rules' outcomes and margins from the recorded execution, and report which requirements are covered, by which simulation and rule, and whether they passed. Use when asked to verify a controller against requirements or a spec, add pass/fail criteria for timing, ranges, interlocks, mode sequences, settling or oscillation, trace tests to requirement IDs, report requirement coverage, or explain why a verification rule failed. Needs SDK 0.11.0+.
+description: Turn a controller's requirements into CppModel verification rules (Always, Response, Settle, Mode, Oscillation, Wear, Rate, Energy, Percent, Tracking) and requirement coverage (VerifyRequirement / CppModel_verifyRequirement) in a simulation, prove each rule can fail, read the rules' outcomes and margins from the recorded execution, see where each rule failed on a chart that draws it, and report which requirements are covered, by which simulation and rule, and whether they passed. Use when asked to verify a controller against requirements or a spec, add pass/fail criteria for timing, ranges, interlocks, mode sequences, settling, tracking a setpoint or oscillation, trace tests to requirement IDs, report requirement coverage, or explain why a verification rule failed. Needs SDK 0.11.0+.
 ---
 
 > **The workspace is integral to CppModel.** Every run is submitted to it and every result is read
@@ -33,6 +33,12 @@ What the library does with them:
   `CppModel.Verify.<name>` instead; the `cppmodel` MCP server returns those under `verification`
   too.
 - Every rule has a **margin** in physical units: > 0 is headroom, < 0 is how far it missed.
+- From SDK 0.18.0, each rule also records **what it checks**, for the workspace to draw: outputs
+  `CppModel.Verifier.<name>.<field>` (`status` per step, the allowed range `min`/`max`, `target`,
+  the time `window`, the `mode`) and, in its outcome, `overlays`: the checked `signal`, the
+  `reference`, point `markers` and a `badge` metric. The workspace's results page and a PNG export
+  that names the rule (`export_signals` `verifiers`) draw them: the range as a band, a status lane,
+  the checked signal red where the rule failed. See "Show the rules on the graph".
 
 Why rules rather than hand-written `StepResult` logic or checking a trace afterwards:
 
@@ -59,6 +65,10 @@ Grep the vendored headers for `cm_rule_always` (`cppmodel.h`), `CppModel_ruleAlw
 or `namespace verify` (`cppmodel.hpp`). If they aren't there, the project is on an SDK before
 0.11.0. Offer `cppmodel:update-dependencies` and stop until it's updated. Don't hand-roll rule
 logic in the simulation as a stand-in.
+
+`Tracking`, `Limits()`, `Signal()` and `Visual()` need SDK 0.18.0+ (`cm_rule_tracking`,
+`cm_rule_signal` in `cppmodel.h`). On an older SDK, use the other rules and offer
+`cppmodel:update-dependencies` when a requirement is about following a moving setpoint.
 
 Check credentials before running anything, as `cppmodel:simulation-testing`'s "Requirements"
 describes.
@@ -97,6 +107,7 @@ For each requirement, choose the rule that states it most directly:
 | changes by at most R per second | `Rate` (signal rule) | reads an output |
 | uses at most E energy / budget | `Energy` (signal rule, `factor` for units) | reads an output |
 | within limits at least P % of the time | `Percent` (signal rule) on a 0/1 output | reads an output |
+| follows a setpoint/reference within ±X (or X %), at most T late, over the whole run | `Tracking` (signal rule, SDK 0.18.0+) | reads the signal and its reference |
 
 Then decide, per rule:
 
@@ -139,6 +150,13 @@ wrong:
 - A signal rule's signal must be an output (or input) the simulation writes. Publish the derived
   0/1 flags it needs (`Zone.Comfortable`, `Zone.Running`) as outputs every step. A signal that is
   never there gives `status: error` and fails the last step.
+- **`Settle` or `Tracking`?** `Settle` checks reaching and staying in a band after each target
+  change (settling time, overshoot). `Tracking` checks every point of the run against a tube
+  around a moving reference: `absTol` and `relTol` (the larger applies), `lagging_s` (how late the
+  signal may follow, e.g. a transport delay) and `leading_s` (how early; usually 0). Its margin is
+  the closest the signal came to the tube's edge; metrics `worst_deviation`, `worst_at_s`,
+  `outside_s`. With a `leading_s`, the failing step comes that much after the point that left the
+  tube.
 - A plain `bool` condition has no margin. Prefer `AtMost`/`Between`/... over a hand-written
   comparison wherever there is a number, so the margin says how close it came.
 - Leave the simulation's existing `CppModel.StepResult` logic alone unless the rules now cover it.
@@ -148,20 +166,37 @@ wrong:
   should call the library's `VerifyRequirement` now, rather than adding a second mechanism next to
   it.
 
+- **Make each rule drawable (SDK 0.18.0+).** Signal rules name their signal already. An `Always`
+  rule only gets a condition: give it the signal it bounds and its limits with
+  `Limits(signal, min, max)` (C `CppModel_alwaysLimits(rule, signal, min, max)`, `NAN` for no such
+  side; Python/Node `limits(signal, min, max)` with `None`/`null`), from the same constants the
+  condition uses. For `Response`, `Settle`, `Mode` and an `Always` without limits, name the output
+  that shows what the rule checks with `Signal(name)` (C `CppModel_ruleSignal`, Python/Node
+  `signal(name)`). Both only change the drawing; the updates still decide. A name that is no output
+  or input of the run prints a warning when the run ends: fix it.
+- **Long runs**: a rule's verifier signals add series to every execution. For a rule that runs for
+  hours of simulated time and rarely needs looking at, `Visual(false)` (C `CppModel_ruleVisual(rule,
+  0)`, Python/Node `visual(False)`/`visual(false)`) keeps only its verdict. Default to visual; turn
+  it off only when the execution size matters (`cppmodel:simulation-testing`, the 100 MB limit).
+
 Register the simulation with `ctest` if it's new (`cppmodel:simulation-testing`, "Build and run").
 
-### Show the rules on the graph: windows and bands
+### Show the rules on the graph
 
-The workspace UI's graph draws two kinds of reserved outputs as decoration, not as signal lines:
-**time windows** (`CppModel.Window.<name>.active`, non-zero while open: a grey shaded area
-labelled `<name>`) and **tolerance bands** (`CppModel.Band.<name>.min` / `.max`: a filled band
-between both sides, or a dashed limit line for one side alone). A band whose `<name>` is exactly
-the label of an output or input of the run belongs to that signal: same colour, moves with its
-shift/scale, hidden with it. Otherwise it is grey. `cppmodel:simulation-testing`'s "Windows and
-bands on the graph" has the full naming rules.
+**SDK 0.18.0+: the rules draw themselves.** Each visual rule records its range, target, time
+windows, per-step status and mode (the verifier signals above), and the workspace draws a rule from
+them when it is shown: on the execution's results page (the run report's "Show on the graph"), and
+in a PNG export that names it in `verifiers` (`cppmodel:simulations`, "Looking at signals"). What
+the code must add is only `Limits()` on an `Always` rule and `Signal()` on step rules (step 3), so
+the drawing knows which signal the rule is about. Don't also hand-write windows or bands that
+repeat a rule's own range or deadline: they would be drawn twice.
 
-Offer to publish them for the rules you write, so whoever opens the execution's `uiUrl` sees what
-each rule allowed next to what the signal did, without reading the code:
+**Before SDK 0.18.0, or for a drawing that isn't a rule's**, the graph draws two reserved kinds of
+outputs as decoration: **time windows** (`CppModel.Window.<name>.active`, non-zero while open: a
+grey shaded area labelled `<name>`) and **tolerance bands** (`CppModel.Band.<name>.min` / `.max`: a
+filled band, or a dashed limit line for one side alone). A band whose `<name>` is exactly the label
+of an output or input belongs to that signal. `cppmodel:simulation-testing`'s "Windows and bands on
+the graph" has the naming rules. On an older SDK, offer them for the rules you write:
 
 | Rule | Window | Band |
 | --- | --- | --- |
@@ -171,17 +206,13 @@ each rule allowed next to what the signal did, without reading the code:
 | `Mode` with `Dwell` | optionally, while the mode's min/max dwell is running | - |
 | `Rate`, `Oscillation`, `Wear`, `Energy`, `Percent` | the rule's `active` output, if it has one and it helps | - |
 
-- **Take the numbers from the rule's own settings**: the same named constants or parameters the
-  rule is constructed with, never retyped literals, so the drawing can't drift from the check.
-- **Decoration only.** Never read a window or band back into a rule, `CppModel.StepResult` or the
-  controller. They don't change pass/fail.
+- **Take the numbers from the rule's own settings** (for `Limits()` too): the same named constants
+  or parameters the rule is constructed with, never retyped literals, so the drawing can't drift
+  from the check.
+- **Decoration only.** Never read a window, a band or a `CppModel.Verifier.*` output back into a
+  rule, `CppModel.StepResult` or the controller. They don't change pass/fail.
 - **Name windows after the rule** (requirement ID first, as the rule is), and **bands after the
-  exact signal label** they bound, so they tie to that signal. Two bands on one signal need
-  different names, and only the one named exactly like the signal is tied to it.
-- The SDK doesn't write these itself yet. Check the vendored headers for a helper (`Band(`,
-  `Window(`, `CppModel_setBand`, `CppModel_setWindow`) and use it if there is one; otherwise write
-  them as ordinary outputs every step. Older UIs hide every `CppModel.*` output, so they are
-  harmless there.
+  exact signal label** they bound, so they tie to that signal.
 
 ## 4. Prove that each rule can fail
 
@@ -199,7 +230,10 @@ silently. For each rule, show one run where it fails, at the step where it shoul
   switch to production controller code.
 - Every one of these runs is recorded (there are no local runs; SDK 0.17.0 removed `--results`).
 - Check from each run's `verification` that the expected rules failed, with the expected
-  `violations` intervals, and that the others still passed. `what_changed` against the passing
+  `violations` intervals, and that the others still passed. A PNG export of the failing run with
+  those rules in `verifiers` and their checked signals (`cppmodel:simulations`, "Looking at
+  signals") shows at a glance that each failed where it should, and gives the user a link to see
+  it too. `what_changed` against the passing
   run confirms the failing run differs only in what you meant to change (the input, or the build).
 - Keep the negative cases as `ctest` tests marked `WILL_FAIL`
   (`cppmodel:ci-pipeline`'s "Input profiles" and "Sweeps"), so a rule that stops being able to fail is
@@ -219,13 +253,24 @@ covered requirement IDs. Report from the recorded execution, through the `cppmod
 - **Flag thin margins** on passing rules, e.g. a response with 0.1 s left of a 2 s deadline.
   The run passed, but a small change could break it. Offer `cppmodel:parameter-sweep` with the
   margin as the metric to find how much headroom there really is.
-- For a failed rule, or a thin margin, export a `png` of the rule's signal and its
-  `CppModel.Verify.<name>` series around the `violations` interval (`export_signals`, see
-  `cppmodel:simulations`' "Looking at signals"). `violations` are in seconds and `from`/`to` in
-  ms, so multiply by 1000. Look at it, and give the snapshot link in the report row along with the
-  execution's `uiUrl`. If the simulation publishes the rule's band, add its `.min`/`.max` as
-  ordinary signals to the export so the limit shows in the PNG; the execution's `uiUrl` draws the
-  bands and windows themselves.
+- **For a failed rule, or a thin margin, look at it drawn.** Export a `png` with the rule's name
+  in `verifiers` and, in `signals`, its checked signal (`overlays.signal`), `Tracking`'s
+  `overlays.reference`, and the one or two signals that explain it (the command, the disturbance),
+  cut to the `violations` interval with some time before it (`export_signals`, see
+  `cppmodel:simulations`' "Looking at signals"; `violations` are in seconds and `from`/`to` in ms,
+  so multiply by 1000). The chart shows the allowed range, the status lane, the failing stretches
+  in red on the signal and the rule's markers, so where and how it failed reads at once. Several
+  failed rules over the same signals can share one export (up to 8). Give the snapshot link in the
+  report row along with the execution's `uiUrl`. If the server rejects `verifiers`
+  (an older server), export the signal with `CppModel.Verify.<name>` and the rule's
+  `CppModel.Verifier.<name>.min`/`.max` (or a published band's `.min`/`.max`) as ordinary signals
+  instead.
+- **Explain a rule from its `overlays`** (SDK 0.18.0+): its `markers` name the moments that
+  decided it (the response, the settling point, the worst point, an illegal transition, each with
+  its `label`, `time_s`, `value` and `pass`) and its `badge` names the one metric (in `metrics`)
+  worth quoting. A step rule without `Signal()`/`Limits()` has no `overlays.signal`: the chart
+  can't mark the failure on a signal, which is what step 3's `Signal()` is for. Use them, with the
+  `explanation` and `violations`, rather than re-deriving times from the series.
 - For a failure, `violations` gives the time; from there, follow
   `cppmodel:simulation-testing`'s "Debugging a failure". Don't loosen a threshold to make a run
   pass. A threshold changes only when the requirement changes, and the customer decides that.
