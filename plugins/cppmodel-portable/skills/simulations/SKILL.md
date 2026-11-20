@@ -45,6 +45,7 @@ an ad-hoc program instead, and never search the project for result files in thei
 | `what_changed` | what differs between two executions: code, parameters, signal names (see "Comparing runs") |
 | `export_signals` | a chart (PNG, returned as an image), CSV or JSON of up to 8 signals of one execution, or of several executions on one chart, with a `/snapshots/<id>` link for the user; on newer servers the chart also draws the run's windows and bands, and the verification rules named in `verifiers` (see "Looking at signals") |
 | `get_export` | an export again, by id or `/snapshots/<id>` link, in any format |
+| `list_streams`, `get_stream` | gprintf streams: values a running program (not a simulation) sends, each keeping only its current run; `export_signals` takes `stream` instead of `simulation` to chart or tabulate one (see `cppmodel:gprintf`, "Read it back") |
 | `get_binary_runs` | the runs of one simulation by one build, by run index, each with `passed` (see "Runs of one build") |
 | `list_builds` | the builds that ran simulations, newest first, grouped by fingerprint or by commit (see "Runs of one build") |
 | `query_executions` | chosen signals (as statistics, per-step values or series) and parameters of many executions in one call, each with pass/fail (see "Many runs side by side") |
@@ -257,6 +258,10 @@ export of up to 8 signals of one execution, plus chosen parameters, and returns 
   draws besides the signals (windows, bands, the requested verifiers; times in ms). For the raw
   series, `get_execution` with `signals` works as well.
 - `none`: only the link.
+
+A gprintf stream's run is exported the same way with `stream` in place of `simulation` (no
+`execution_id`, `verifiers` or other executions; drawn as straight lines between samples, times in
+ms since the run started); `cppmodel:gprintf`, "Read it back", covers it.
 
 ```
 export_signals {simulation: "CPidSystemSim", format: "png",
@@ -485,7 +490,7 @@ picks the workspace from the login; `get_workspace` says which one, with its `ui
 `uiUrl` links the tools return. To build one yourself (name and ids URL-encoded):
 `<uiUrl>/results/<name>` (a simulation's latest execution), `<uiUrl>/results/<name>/executions/<id>`
 (one execution), `<uiUrl>/what-changed/<name>?current=<id>&previous=<id>` (two compared),
-`<uiUrl>/snapshots/<id>` (a signal export, for 7 days) and `<uiUrl>/team-simulations`. Don't assume a `w<number>` workspace when explaining a URL.
+`<uiUrl>/snapshots/<id>` (a signal export, for 7 days), `<uiUrl>/streams/<name>` (a gprintf stream's live page) and `<uiUrl>/team-simulations`. Don't assume a `w<number>` workspace when explaining a URL.
 
 ## Running simulations still needs `.env`
 

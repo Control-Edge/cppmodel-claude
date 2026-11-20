@@ -54,10 +54,12 @@ A Claude Code plugin for projects using the CppModel libraries. Fifteen skills:
   requirement-to-rule mapping with you before writing code, proves each rule can fail, and reports
   each rule's outcome and margin from the recorded execution. It then builds a coverage matrix from
   `cppmodel-requirements.json`: covered, gaps, unknown IDs, and what isn't verifiable by simulation.
-- **`cppmodel:gprintf`** - adds gprintf, the SDK's "visual printf" (0.18.0+), to code that is
-  already running (a bench program, a rig, a script), so chosen values show up as live graphs in
-  the workspace's Streams view. Covers C, C++, Python and Node, naming the stream, and turning it
-  off in production and CI.
+- **`cppmodel:gprintf`** - print any value from running C, C++, Python or Node code (a bench
+  program, a rig, a script, an algorithm being debugged) with gprintf, the SDK's "visual printf"
+  (0.18.0+), and get it back as a chart (PNG), a table (CSV) or the series (JSON) through the MCP
+  server (`list_streams`, `get_stream`, `export_signals` with `stream`), plus a live graph in the
+  workspace's Streams view. Replaces printf debugging, CSV dumps and plotting scripts. Covers naming
+  the stream, reading it back, and turning it off in production and CI.
 - **`cppmodel:coding-standard`** - when controller (production) code is written or changed, offers
   MISRA C/C++ or the project's own standard. MISRA is licensed per user, so it works from your own
   copy of the rules (a path to your PDF or rule-texts file), never from general knowledge. It never
@@ -187,7 +189,7 @@ files in its place); when it can't be reached, they stop and help fix the login 
 - `plugins/cppmodel/scripts/detect-environment.sh` / `.ps1` - read-only probes the setup skill runs
   to report OS, architecture, C library, compilers, tools, and the currently published SDK builds
 - `plugins/cppmodel/skills/simulation-inputs/SKILL.md` - the inputs/parameters skill
-- `plugins/cppmodel/skills/gprintf/SKILL.md` - the live-graphs (gprintf) skill
+- `plugins/cppmodel/skills/gprintf/SKILL.md` - the print-to-PNG/CSV/JSON (gprintf) skill
 - `plugins/cppmodel/skills/parameter-sweep/SKILL.md` - the sweep skill
 - `plugins/cppmodel/skills/experiment-design/SKILL.md` - the field experiment-plan skill, with
   `plan-format.md`, the plan format reconciliation reads

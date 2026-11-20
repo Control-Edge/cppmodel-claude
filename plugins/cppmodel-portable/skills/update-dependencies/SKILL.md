@@ -326,8 +326,9 @@ old headers include `cppmodel.hpp`, and `CppModelBase`/`CppModelLib` are namespa
     run gets more series; `Visual(false)` keeps a rule to its verdict.
   - **The `Tracking` rule** checks a signal against a moving reference over the whole run.
   - **gprintf** (`gprintf.h` for C, `cppmodel::gprintf`/`cppmodel::Stream` in C++, `gprintf`/`Stream`
-    in Python and Node) sends values from code that is already running to live graphs in the
-    workspace's Streams view (`cppmodel:gprintf`).
+    in Python and Node) sends values from code that is already running to the workspace, to read
+    back as PNG, CSV or JSON (`export_signals` with `stream`) and watch live in its Streams view
+    (`cppmodel:gprintf`).
 
 ## 7. Fix call sites: mechanical changes now, ambiguous ones stop and ask
 
